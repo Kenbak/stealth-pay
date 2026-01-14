@@ -1,0 +1,167 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================
+// ORGANIZATIONS
+// ============================================
+
+model Organization {
+  id            String   @id @default(cuid())
+  name          String
+  adminWallet   String   @unique // Solana wallet address
+  encryptionKey String // Encrypted org-specific key (encrypted with MASTER_KEY)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employees Employee[]
+  payrolls  Payroll[]
+  deposits  Deposit[]
+
+  @@map("organizations")
+}
+
+// ============================================
+// EMPLOYEES
+// ============================================
+
+model Employee {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Encrypted fields (using org's encryption key)
+  nameEncrypted          String // AES-256-GCM encrypted
+  salaryEncrypted        String // AES-256-GCM encrypted
+  walletAddressEncrypted String // AES-256-GCM encrypted (for extra privacy)
+
+  // Status
+  status EmployeeStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payments Payment[]
+
+  @@map("employees")
+}
+
+// ============================================
+// PAYROLLS
+// ============================================
+
+model Payroll {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Scheduled date (when this payroll should run)
+  scheduledDate DateTime?
+
+  totalAmount   Decimal  @db.Decimal(18, 6)
+  tokenMint     String // USDC, USDT, SOL mint address
+
+  // Status: SCHEDULED, PENDING, PROCESSING, COMPLETED, FAILED
+  status        PayrollStatus @default(PENDING)
+
+  // Transaction references
+  depositTxHash String? // Deposit to privacy pool
+
+  executedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  payments Payment[]
+
+  @@map("payrolls")
+}
+
+// ============================================
+// PAYMENTS (Individual employee payments)
+// ============================================
+
+model Payment {
+  id         String   @id @default(cuid())
+  payrollId  String
+  payroll    Payroll  @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Encrypted amount (for our records)
+  amountEncrypted String
+
+  // Privacy transaction reference (if available from SDK)
+  privateTxRef String?
+
+  // Status
+  status PaymentStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payments")
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  PAUSED
+  TERMINATED
+}
+
+enum PayrollStatus {
+  SCHEDULED  // Payroll is scheduled for future date
+  PENDING    // Ready to execute
+  PROCESSING // Currently executing
+  COMPLETED  // Done
+  FAILED     // Error occurred
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ============================================
+// DEPOSITS (Treasury management)
+// ============================================
+
+model Deposit {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  amount    Decimal  @db.Decimal(18, 6)
+  tokenMint String
+  txHash    String  @unique
+
+  createdAt DateTime @default(now())
+
+  @@map("deposits")
+}
+
+// ============================================
+// AUTH CHALLENGES (for wallet auth)
+// ============================================
+
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  wallet    String
+  nonce     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([wallet])
+  @@index([expiresAt])
+  @@map("auth_challenges")
+}
