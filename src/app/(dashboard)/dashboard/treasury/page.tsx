@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Card,
   CardContent,
@@ -15,22 +16,34 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Wallet,
-  Plus,
   ArrowDownToLine,
-  ExternalLink,
+  ArrowUpFromLine,
   Loader2,
   AlertCircle,
   Shield,
   CheckCircle2,
   ArrowRight,
   Info,
+  RefreshCw,
+  Zap,
+  ExternalLink,
+  Clock,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { useEmployees } from "@/hooks/use-employees";
 import { usePrices } from "@/hooks/use-prices";
-import { formatCurrency, truncateAddress, TOKENS } from "@/lib/utils";
-import { calculateFee, FEES } from "@/lib/fees";
+import { useShadowWire } from "@/hooks/use-shadowwire";
+import { useJupiterSwap } from "@/hooks/use-jupiter";
+import { formatCurrency } from "@/lib/utils";
+import { calculateFee } from "@/lib/fees";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useToast } from "@/components/ui/use-toast";
+
+// Get network from env
+const NETWORK = process.env.NEXT_PUBLIC_SOLANA_NETWORK || "devnet";
+const isMainnet = NETWORK === "mainnet-beta";
 
 export default function TreasuryPage() {
   const { publicKey, connected } = useWallet();
@@ -38,35 +51,101 @@ export default function TreasuryPage() {
   const { totalSalary, activeEmployees } = useEmployees();
   const { toast } = useToast();
   const { prices, getPrice, toUsd, isLoading: pricesLoading } = usePrices();
+  const {
+    deposit: shadowWireDeposit,
+    withdraw: shadowWireWithdraw,
+    balance: poolBalance,
+    fetchBalance: fetchPoolBalance,
+    isLoading: isShadowWireLoading
+  } = useShadowWire();
 
-  const [balance, setBalance] = useState<number | null>(null);
+  // Jupiter swap hook for SOL → USDC conversion
+  const {
+    getQuote,
+    executeSwap,
+    currentQuote,
+    isLoadingQuote,
+    isSwapping,
+  } = useJupiterSwap();
+
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [usdcBalance, setUsdcBalance] = useState<number | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
-  const [selectedToken, setSelectedToken] = useState("USDC");
-  const [isDepositing, setIsDepositing] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [depositMethod, setDepositMethod] = useState<"usdc" | "sol">("usdc");
+  const [activeTab, setActiveTab] = useState<"deposit" | "withdraw">("deposit");
 
-  // Get current token price
-  const tokenPrice = getPrice(selectedToken);
-  const isStablecoin = selectedToken === "USDC" || selectedToken === "USDT";
+  // Minimum amounts
+  const MIN_DEPOSIT_USDC = 6;
+  const MIN_DEPOSIT_SOL = 0.05;
+  const MIN_WITHDRAW = 6;
 
-  // Calculate amounts in token and USD
-  const tokenAmount = parseFloat(depositAmount) || 0;
-  const usdAmount = toUsd(tokenAmount, selectedToken);
+  // Treasury is always USDC (simplified UX)
+  const treasuryBalance = poolBalance.usdc;
 
-  // Calculate fees (always in USD for consistency)
-  const { fee, netAmount, feePercentage } = calculateFee(usdAmount);
+  // Fetch treasury transactions
+  const { data: transactionsData, refetch: refetchTransactions } = useQuery({
+    queryKey: ["treasury-transactions"],
+    queryFn: async () => {
+      const token = localStorage.getItem("auth-token");
+      if (!token) return { transactions: [] };
 
-  // Net amount in tokens (after fee)
-  const netTokenAmount = isStablecoin ? netAmount : (tokenPrice > 0 ? netAmount / tokenPrice : 0);
+      const res = await fetch("/api/treasury/transactions", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return { transactions: [] };
+      return res.json();
+    },
+    enabled: connected,
+    refetchInterval: 30000, // Refetch every 30s
+  });
 
-  // Fetch wallet balance
+  const transactions = transactionsData?.transactions || [];
+
+  // Get SOL price for swap calculations
+  const solPrice = getPrice("SOL");
+
+  // Calculate amounts based on deposit method
+  const inputAmount = parseFloat(depositAmount) || 0;
+
+  // If depositing SOL, use swap quote; if USDC, use direct amount
+  const usdcAmount = depositMethod === "sol" && currentQuote
+    ? currentQuote.outputAmount
+    : inputAmount;
+
+  // Calculate fees (always on final USDC amount)
+  const { fee, netAmount, feePercentage } = calculateFee(usdcAmount);
+
+  // Fetch wallet balances (SOL + USDC)
   const fetchBalance = async () => {
     if (!publicKey) return;
 
     setIsLoadingBalance(true);
     try {
-      const bal = await connection.getBalance(publicKey);
-      setBalance(bal / LAMPORTS_PER_SOL);
+      // Get native SOL balance
+      const solBal = await connection.getBalance(publicKey);
+      setSolBalance(solBal / LAMPORTS_PER_SOL);
+
+      // Get USDC balance from wallet
+      try {
+        const { getAssociatedTokenAddress } = await import("@solana/spl-token");
+        const { PublicKey } = await import("@solana/web3.js");
+
+        const USDC_MINT = process.env.NEXT_PUBLIC_SOLANA_NETWORK === "mainnet-beta"
+          ? new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v")
+          : new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+
+        const ata = await getAssociatedTokenAddress(USDC_MINT, publicKey);
+        const tokenBalance = await connection.getTokenAccountBalance(ata);
+        setUsdcBalance(parseFloat(tokenBalance.value.uiAmountString || "0"));
+      } catch {
+        // No USDC account or zero balance
+        setUsdcBalance(0);
+      }
+
+      // Fetch treasury balances
+      await fetchPoolBalance();
     } catch (error) {
       console.error("Failed to fetch balance:", error);
     } finally {
@@ -82,93 +161,148 @@ export default function TreasuryPage() {
   }, [connected, publicKey]);
 
   const handleDeposit = async () => {
-    if (!depositAmount || tokenAmount <= 0) return;
+    if (!depositAmount || inputAmount <= 0) return;
 
-    setIsDepositing(true);
+    // If depositing SOL, swap to USDC first
+    if (depositMethod === "sol" && currentQuote) {
+      try {
+        // 1. Execute swap SOL → USDC
+        const swapResult = await executeSwap(currentQuote);
 
-    // TODO: Integrate Privacy Cash SDK here
-    // For now, show a placeholder
-    setTimeout(() => {
-      toast({
-        title: "🚧 Privacy Cash Integration",
-        description: `Deposit of ${formatCurrency(netAmount)} will be available after SDK integration`,
-      });
-      setIsDepositing(false);
-    }, 1500);
+        if (!swapResult.success) {
+          return; // Error toast is shown by the hook
+        }
+
+        // 2. Deposit USDC to treasury
+        const signature = await shadowWireDeposit(swapResult.usdcAmount, "USDC");
+
+        if (signature) {
+          toast({
+            title: "Deposit Complete! 🎉",
+            description: `Swapped ${inputAmount} SOL → ${swapResult.usdcAmount.toFixed(2)} USDC and deposited to treasury`,
+          });
+          setDepositAmount("");
+          fetchBalance();
+        }
+      } catch (error: any) {
+        toast({
+          title: "Deposit Failed",
+          description: error.message || "An error occurred",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    // Direct USDC deposit to treasury
+    const signature = await shadowWireDeposit(inputAmount, "USDC");
+
+    if (signature) {
+      setDepositAmount("");
+      fetchBalance();
+    }
   };
 
-  // Check if deposit covers payroll (compare in USD)
+  const handleWithdraw = async () => {
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) return;
+
+    // Execute USDC withdrawal from treasury
+    const signature = await shadowWireWithdraw(parseFloat(withdrawAmount), "USDC");
+
+    if (signature) {
+      setWithdrawAmount("");
+      fetchBalance();
+    }
+  };
+
+  // Check if deposit covers payroll
   const coversPayroll = netAmount >= totalSalary;
-  const needsMore = totalSalary > 0 && netAmount < totalSalary;
   const monthsCovered = totalSalary > 0 ? Math.floor(netAmount / totalSalary) : 0;
+
+  // Get Jupiter quote when SOL is selected
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputAmount > 0 && depositMethod === "sol") {
+        getQuote(inputAmount);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [inputAmount, depositMethod, getQuote]);
+
+  // Swap info
+  const swapRate = currentQuote?.rate || solPrice;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Treasury</h1>
-        <p className="text-muted-foreground">
-          Manage your payroll funds and deposits
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Treasury</h1>
+          <p className="text-muted-foreground">
+            Manage your payroll funds
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={fetchBalance}
+          disabled={isLoadingBalance}
+          className="gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLoadingBalance ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Wallet Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Connected Wallet
+              Wallet Balance
             </CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {publicKey ? (
-              <>
-                <div className="text-lg font-mono font-semibold">
-                  {truncateAddress(publicKey.toBase58(), 6)}
-                </div>
-                <a
-                  href={`https://explorer.solana.com/address/${publicKey.toBase58()}?cluster=devnet`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                >
-                  View on Explorer <ExternalLink className="h-3 w-3" />
-                </a>
-              </>
-            ) : (
-              <p className="text-muted-foreground">Not connected</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              SOL Balance
-            </CardTitle>
-            <Badge variant="secondary">Devnet</Badge>
+            <Badge variant={isMainnet ? "default" : "secondary"}>
+              {isMainnet ? "Mainnet" : "Devnet"}
+            </Badge>
           </CardHeader>
           <CardContent>
             {isLoadingBalance ? (
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            ) : balance !== null ? (
-              <>
-                <div className="text-2xl font-bold">
-                  {balance.toFixed(4)} SOL
+            ) : solBalance !== null ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground text-sm">◎ SOL</span>
+                  <span className="font-bold">{solBalance.toFixed(4)}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={fetchBalance}
-                  className="text-xs p-0 h-auto text-muted-foreground hover:text-foreground"
-                >
-                  Refresh
-                </Button>
-              </>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground text-sm">💵 USDC</span>
+                  <span className="font-bold">{(usdcBalance || 0).toFixed(2)}</span>
+                </div>
+              </div>
             ) : (
-              <Button variant="outline" size="sm" onClick={fetchBalance}>
-                Load Balance
-              </Button>
+              <span className="text-muted-foreground text-sm">Click Refresh to load</span>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-stealth-500/30 bg-stealth-500/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-stealth-600 dark:text-stealth-400">
+              Treasury Balance
+            </CardTitle>
+            <Shield className="h-4 w-4 text-stealth-500" />
+          </CardHeader>
+          <CardContent>
+            {isLoadingBalance ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-stealth-600 dark:text-stealth-400">
+                  {treasuryBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Ready for private payroll
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
@@ -191,71 +325,180 @@ export default function TreasuryPage() {
         </Card>
       </div>
 
-      {/* Deposit Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ArrowDownToLine className="h-5 w-5" />
-            Deposit Funds
-          </CardTitle>
-          <CardDescription>
-            Add funds to your payroll treasury for private distribution
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* How it works */}
-          <div className="bg-stealth-500/5 border border-stealth-500/20 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-stealth-500 mt-0.5" />
-              <div>
-                <p className="font-medium text-stealth-600 dark:text-stealth-400">
-                  How Private Deposits Work
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Funds are deposited into a Privacy Cash pool. When you run
-                  payroll, individual payments are made privately using
-                  zero-knowledge proofs. The total deposit is visible, but
-                  individual payments are completely hidden.
-                </p>
-              </div>
-            </div>
+      {/* Deposit / Withdraw Tabs */}
+      <Card className="max-w-2xl">
+        <CardHeader className="pb-4">
+          {/* Tab Navigation */}
+          <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+            <button
+              onClick={() => setActiveTab("deposit")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === "deposit"
+                  ? "bg-background shadow text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ArrowDownToLine className="h-4 w-4" />
+              Deposit
+            </button>
+            <button
+              onClick={() => setActiveTab("withdraw")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                activeTab === "withdraw"
+                  ? "bg-background shadow text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ArrowUpFromLine className="h-4 w-4" />
+              Withdraw
+            </button>
           </div>
+        </CardHeader>
 
-          {/* Input Section */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="token">Token</Label>
-              <select
-                id="token"
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                value={selectedToken}
-                onChange={(e) => setSelectedToken(e.target.value)}
-              >
-                {Object.values(TOKENS).map((token) => (
-                  <option key={token.symbol} value={token.symbol}>
-                    {token.icon} {token.symbol} - {token.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <CardContent className="space-y-6">
+          {activeTab === "deposit" ? (
+            <>
+              {/* How it works */}
+              <div className="bg-stealth-500/5 border border-stealth-500/20 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-stealth-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-stealth-600 dark:text-stealth-400">
+                      How Private Deposits Work
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Funds are deposited into your treasury. When you run
+                      payroll, payments are made privately using zero-knowledge proofs.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="amount">Deposit Amount</Label>
-              <div className="relative">
-                <Input
-                  id="amount"
-                  type="number"
-                  placeholder="0.00"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  className="pr-16 text-lg"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  {selectedToken}
+              {/* Deposit Method Toggle */}
+              <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                <button
+                  onClick={() => setDepositMethod("usdc")}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                    depositMethod === "usdc"
+                      ? "bg-background shadow text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  💵 USDC
+                </button>
+                <button
+                  onClick={() => setDepositMethod("sol")}
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                    depositMethod === "sol"
+                      ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  ◎ SOL → USDC
+                </button>
+              </div>
+
+              {/* Amount Input */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="amount">
+                    {depositMethod === "sol" ? "SOL Amount" : "USDC Amount"}
+                  </Label>
+                  <span className="text-sm text-muted-foreground">
+                    Available: {depositMethod === "sol"
+                      ? `${(solBalance || 0).toFixed(4)} SOL`
+                      : `${(usdcBalance || 0).toFixed(2)} USDC`}
+                  </span>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="amount"
+                    type="number"
+                    placeholder="0.00"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value)}
+                    className="pr-24 text-lg"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const maxAmount = depositMethod === "sol"
+                          ? Math.max(0, (solBalance || 0) - 0.01)
+                          : (usdcBalance || 0);
+                        setDepositAmount(maxAmount.toString());
+                      }}
+                      className="text-xs text-stealth-500 hover:text-stealth-600 font-medium"
+                    >
+                      MAX
+                    </button>
+                    <span className="text-sm text-muted-foreground">
+                      {depositMethod === "sol" ? "SOL" : "USDC"}
+                    </span>
+                  </div>
+                </div>
+                {/* Minimum deposit warning */}
+                {inputAmount > 0 && inputAmount < (depositMethod === "sol" ? MIN_DEPOSIT_SOL : MIN_DEPOSIT_USDC) && (
+                  <p className="text-sm text-orange-500 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Minimum: {depositMethod === "sol" ? `${MIN_DEPOSIT_SOL} SOL` : `${MIN_DEPOSIT_USDC} USDC`}
+                  </p>
+                )}
+              </div>
+
+          {/* Swap Quote Display (when SOL selected) */}
+          {depositMethod === "sol" && inputAmount > 0 && (
+            <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Zap className="h-5 w-5 text-purple-500 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-medium text-purple-600 dark:text-purple-400">
+                    Jupiter Swap Preview
+                  </p>
+
+                  <div className="mt-3 p-3 bg-background/50 rounded-md">
+                    {isLoadingQuote ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Getting best price...
+                      </div>
+                    ) : currentQuote ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Rate</span>
+                          <span className="font-mono">
+                            1 SOL = {swapRate.toFixed(2)} USDC
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">You'll receive</span>
+                          <span className="font-bold text-purple-500">
+                            ~{usdcAmount.toFixed(2)} USDC
+                          </span>
+                        </div>
+                        {currentQuote.priceImpact > 0.5 && (
+                          <div className="flex items-center gap-1 text-xs text-orange-500">
+                            <AlertCircle className="h-3 w-3" />
+                            Price impact: {currentQuote.priceImpact.toFixed(2)}%
+                          </div>
+                        )}
+                        <button
+                          onClick={() => getQuote(inputAmount)}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Refresh quote
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-orange-500">
+                        Could not get quote. Try again.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Quick Amount Buttons */}
           <div className="flex flex-wrap gap-2">
@@ -286,61 +529,54 @@ export default function TreasuryPage() {
           </div>
 
           {/* Fee Breakdown - Only show when amount > 0 */}
-          {tokenAmount > 0 && (
+          {inputAmount > 0 && (
             <div className="border rounded-lg p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Info className="h-4 w-4 text-muted-foreground" />
-                Fee Breakdown
+                Deposit Summary
               </div>
 
               <div className="space-y-2">
-                {/* Token Price (only for non-stablecoins) */}
-                {!isStablecoin && (
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Current {selectedToken} price</span>
-                    <span className="font-mono">
-                      {pricesLoading ? "Loading..." : formatCurrency(tokenPrice)}
-                    </span>
-                  </div>
-                )}
-
-                {/* Deposit Amount */}
+                {/* Input Amount */}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">You deposit</span>
                   <span className="font-medium">
-                    {tokenAmount} {selectedToken}
-                    {!isStablecoin && (
-                      <span className="text-muted-foreground ml-1">
-                        (≈ {formatCurrency(usdAmount)})
-                      </span>
-                    )}
+                    {inputAmount} {depositMethod === "sol" ? "SOL" : "USDC"}
                   </span>
                 </div>
+
+                {/* Swap Arrow (if SOL) */}
+                {depositMethod === "sol" && currentQuote && (
+                  <>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <ArrowRight className="h-3 w-3" />
+                      <span>Jupiter Swap (1 SOL = {swapRate.toFixed(2)} USDC)</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">After swap</span>
+                      <span className="font-medium text-purple-500">
+                        {usdcAmount.toFixed(2)} USDC
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 {/* Fee */}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
                     StealthPay fee ({feePercentage}%)
                   </span>
-                  <span className="text-orange-500">-{formatCurrency(fee)}</span>
+                  <span className="text-orange-500">-${fee.toFixed(2)}</span>
                 </div>
 
-                {/* Divider */}
                 <div className="border-t my-2" />
 
                 {/* Net Amount */}
                 <div className="flex justify-between items-baseline">
                   <span className="font-medium">Available for payroll</span>
-                  <div className="text-right">
-                    <span className="text-xl font-bold text-stealth-500">
-                      {formatCurrency(netAmount)}
-                    </span>
-                    {!isStablecoin && (
-                      <div className="text-xs text-muted-foreground">
-                        ≈ {netTokenAmount.toFixed(4)} {selectedToken}
-                      </div>
-                    )}
-                  </div>
+                  <span className="text-xl font-bold text-stealth-500">
+                    {netAmount.toFixed(2)} USDC
+                  </span>
                 </div>
 
                 {/* Coverage indicator */}
@@ -358,7 +594,7 @@ export default function TreasuryPage() {
                     ) : (
                       <>
                         <AlertCircle className="h-4 w-4" />
-                        Need {formatCurrency(totalSalary - netAmount)} more to cover 1 month
+                        Need ${(totalSalary - netAmount).toFixed(2)} more to cover 1 month
                       </>
                     )}
                   </div>
@@ -368,7 +604,7 @@ export default function TreasuryPage() {
           )}
 
           {/* Deposit Flow Visualization */}
-          {tokenAmount > 0 && (
+          {inputAmount > 0 && (
             <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
               <div className="flex flex-col items-center">
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -397,79 +633,289 @@ export default function TreasuryPage() {
             </div>
           )}
 
-          {/* Deposit Button */}
-          <Button
-            onClick={handleDeposit}
-            disabled={!depositAmount || tokenAmount <= 0 || isDepositing}
-            className="w-full"
-            size="lg"
-          >
-            {isDepositing ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Plus className="h-4 w-4 mr-2" />
-                Deposit {tokenAmount > 0 ? `${tokenAmount} ${selectedToken}` : ""} to Privacy Pool
-              </>
-            )}
-          </Button>
+              {/* Deposit Button */}
+              <Button
+                onClick={handleDeposit}
+                disabled={
+                  !depositAmount ||
+                  inputAmount <= 0 ||
+                  inputAmount < (depositMethod === "sol" ? MIN_DEPOSIT_SOL : MIN_DEPOSIT_USDC) ||
+                  isShadowWireLoading ||
+                  isSwapping ||
+                  (depositMethod === "sol" && (!currentQuote || isLoadingQuote))
+                }
+                className={`w-full ${depositMethod === "sol" ? "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700" : ""}`}
+                size="lg"
+              >
+                {isShadowWireLoading || isSwapping ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {isSwapping ? "Swapping..." : "Depositing..."}
+                  </>
+                ) : depositMethod === "sol" ? (
+                  <>
+                    <Zap className="h-4 w-4 mr-2" />
+                    Swap & Deposit {inputAmount > 0 ? `${inputAmount} SOL` : ""}
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownToLine className="h-4 w-4 mr-2" />
+                    Deposit {inputAmount > 0 ? `${inputAmount} USDC` : ""}
+                  </>
+                )}
+              </Button>
 
-          {/* Fee explanation */}
-          <p className="text-xs text-muted-foreground text-center">
-            A {feePercentage}% fee is charged to support StealthPay operations.
-            {" "}Minimum fee: ${FEES.MINIMUM_USD.toFixed(2)}
-          </p>
+              {/* Fee explanation */}
+              <p className="text-xs text-muted-foreground text-center">
+                {feePercentage}% fee • Min: {depositMethod === "sol" ? `${MIN_DEPOSIT_SOL} SOL` : `${MIN_DEPOSIT_USDC} USDC`}
+              </p>
+            </>
+          ) : (
+            /* WITHDRAW TAB */
+            <>
+              {/* Available Balance */}
+              <div className="bg-stealth-500/5 border border-stealth-500/20 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-stealth-500" />
+                    <span className="font-medium text-stealth-600 dark:text-stealth-400">
+                      Available in Treasury
+                    </span>
+                  </div>
+                  <span className="text-xl font-bold text-stealth-600 dark:text-stealth-400">
+                    {treasuryBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
+                  </span>
+                </div>
+              </div>
+
+              {/* Withdraw Amount */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="withdrawAmount">Withdraw Amount</Label>
+                </div>
+                <div className="relative">
+                  <Input
+                    id="withdrawAmount"
+                    type="number"
+                    placeholder="0.00"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    max={treasuryBalance}
+                    className="pr-24 text-lg"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                    <button
+                      onClick={() => setWithdrawAmount(treasuryBalance.toString())}
+                      className="text-xs text-stealth-500 hover:text-stealth-600 font-medium"
+                    >
+                      MAX
+                    </button>
+                    <span className="text-sm text-muted-foreground">USDC</span>
+                  </div>
+                </div>
+                {/* Minimum withdraw warning */}
+                {parseFloat(withdrawAmount) > 0 && parseFloat(withdrawAmount) < MIN_WITHDRAW && (
+                  <p className="text-sm text-orange-500 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Minimum withdraw: {MIN_WITHDRAW} USDC
+                  </p>
+                )}
+                {parseFloat(withdrawAmount) > treasuryBalance && (
+                  <p className="text-sm text-red-500 flex items-center gap-1">
+                    <AlertCircle className="h-4 w-4" />
+                    Insufficient balance
+                  </p>
+                )}
+              </div>
+
+              {/* Withdraw Flow Visualization */}
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                <div className="flex flex-col items-center">
+                  <div className="w-10 h-10 rounded-full bg-stealth-500/10 flex items-center justify-center">
+                    <Shield className="h-5 w-5 text-stealth-500" />
+                  </div>
+                  <span className="mt-1">Treasury</span>
+                </div>
+
+                <ArrowRight className="h-5 w-5 text-muted-foreground/50" />
+
+                <div className="flex flex-col items-center">
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                    <Wallet className="h-5 w-5" />
+                  </div>
+                  <span className="mt-1">Your Wallet</span>
+                </div>
+              </div>
+
+              {/* Withdraw Button */}
+              <Button
+                onClick={handleWithdraw}
+                disabled={
+                  !withdrawAmount ||
+                  parseFloat(withdrawAmount) <= 0 ||
+                  parseFloat(withdrawAmount) < MIN_WITHDRAW ||
+                  parseFloat(withdrawAmount) > treasuryBalance ||
+                  isShadowWireLoading
+                }
+                variant="outline"
+                className="w-full"
+                size="lg"
+              >
+                {isShadowWireLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Withdrawing...
+                  </>
+                ) : (
+                  <>
+                    <ArrowUpFromLine className="h-4 w-4 mr-2" />
+                    Withdraw {withdrawAmount ? `${withdrawAmount} USDC` : ""}
+                  </>
+                )}
+              </Button>
+
+              {/* Fee explanation */}
+              <p className="text-xs text-muted-foreground text-center">
+                Minimum withdraw: {MIN_WITHDRAW} USDC
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* Recent Deposits */}
+      {/* Transaction History */}
       <Card>
         <CardHeader>
-          <CardTitle>Deposit History</CardTitle>
-          <CardDescription>Your recent deposits to the treasury</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Transaction History
+              </CardTitle>
+              <CardDescription>Recent deposits and withdrawals</CardDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => refetchTransactions()}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <Wallet className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No deposits yet</p>
-            <p className="text-sm">Make your first deposit to get started</p>
-          </div>
+          {transactions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Wallet className="h-10 w-10 mx-auto mb-3 opacity-50" />
+              <p>No transactions yet</p>
+              <p className="text-sm">Make your first deposit to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {transactions.map((tx: {
+                id: string;
+                type: string;
+                amount: number;
+                tokenMint: string;
+                txHash: string;
+                feeAmount?: number;
+                createdAt: string;
+              }) => {
+                const isDeposit = tx.type === "DEPOSIT";
+                const isWithdraw = tx.type === "WITHDRAW";
+                const tokenSymbol = tx.tokenMint.includes("EPjFWdd5") ? "USDC" : "SOL";
+
+                return (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                        isDeposit
+                          ? "bg-green-500/10 text-green-500"
+                          : isWithdraw
+                          ? "bg-orange-500/10 text-orange-500"
+                          : "bg-blue-500/10 text-blue-500"
+                      }`}>
+                        {isDeposit ? (
+                          <TrendingUp className="h-4 w-4" />
+                        ) : isWithdraw ? (
+                          <TrendingDown className="h-4 w-4" />
+                        ) : (
+                          <ArrowUpFromLine className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">
+                          {isDeposit ? "Deposit" : isWithdraw ? "Withdraw" : "Payroll"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(tx.createdAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className={`font-medium ${isDeposit ? "text-green-500" : ""}`}>
+                          {isDeposit ? "+" : "-"}{tx.amount.toFixed(2)} {tokenSymbol}
+                        </p>
+                        {tx.feeAmount && (
+                          <p className="text-xs text-muted-foreground">
+                            Fee: {tx.feeAmount.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                      <a
+                        href={`https://solscan.io/tx/${tx.txHash}${!isMainnet ? "?cluster=devnet" : ""}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Devnet Notice */}
-      <Card className="border-dashed">
-        <CardContent className="py-4">
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <Info className="h-5 w-5 flex-shrink-0" />
-            <div>
-              <p>
-                <strong>Devnet Mode:</strong> For testing, get free tokens from{" "}
-                <a
-                  href="https://spl-token-faucet.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-stealth-500 hover:underline"
-                >
-                  SPL Token Faucet
-                </a>
-                {" "}or{" "}
-                <a
-                  href="https://faucet.solana.com/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-stealth-500 hover:underline"
-                >
-                  Solana Faucet
-                </a>
-              </p>
+      {/* Devnet Notice - only show on devnet */}
+      {!isMainnet && (
+        <Card className="border-dashed border-orange-500/30 bg-orange-500/5">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <Info className="h-5 w-5 flex-shrink-0 text-orange-500" />
+              <div>
+                <p>
+                  <strong className="text-orange-600 dark:text-orange-400">Devnet Mode:</strong> Get free test tokens from{" "}
+                  <a
+                    href="https://spl-token-faucet.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-stealth-500 hover:underline"
+                  >
+                    SPL Token Faucet
+                  </a>
+                  {" "}or{" "}
+                  <a
+                    href="https://faucet.solana.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-stealth-500 hover:underline"
+                  >
+                    Solana Faucet
+                  </a>
+                </p>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

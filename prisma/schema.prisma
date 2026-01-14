@@ -22,9 +22,9 @@ model Organization {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  employees Employee[]
-  payrolls  Payroll[]
-  deposits  Deposit[]
+  employees            Employee[]
+  payrolls             Payroll[]
+  treasuryTransactions TreasuryTransaction[]
 
   @@map("organizations")
 }
@@ -132,21 +132,38 @@ enum PaymentStatus {
 }
 
 // ============================================
-// DEPOSITS (Treasury management)
+// TREASURY TRANSACTIONS (Deposits, Withdrawals, Payroll outflows)
 // ============================================
 
-model Deposit {
+model TreasuryTransaction {
   id             String   @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  type      TreasuryTxType
   amount    Decimal  @db.Decimal(18, 6)
   tokenMint String
-  txHash    String  @unique
+  txHash    String   @unique
+
+  // Optional: link to payroll for payroll outflows
+  payrollId String?
+
+  // Fee paid (if any)
+  feeAmount Decimal? @db.Decimal(18, 6)
+  feeTxHash String?
 
   createdAt DateTime @default(now())
 
-  @@map("deposits")
+  @@index([organizationId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("treasury_transactions")
+}
+
+enum TreasuryTxType {
+  DEPOSIT
+  WITHDRAW
+  PAYROLL_OUT
 }
 
 // ============================================

@@ -95,7 +95,7 @@ export default function HomePage() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">How StealthPay Works</h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
-              We use Privacy Cash's zero-knowledge proofs to make individual
+              We use Radr ShadowWire's zero-knowledge proofs to make individual
               payments invisible on-chain.
             </p>
           </div>

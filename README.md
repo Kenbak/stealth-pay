@@ -17,26 +17,27 @@ On-chain payroll is **completely public**. When a company pays employees in cryp
 
 ## 💡 Solution
 
-StealthPay uses **Privacy Cash** to execute payroll with hidden amounts and recipients using zero-knowledge proofs.
+StealthPay uses **Radr ShadowPay** to execute payroll with hidden amounts and recipients using zero-knowledge proofs.
 
 ```
 Employer deposits 50,000 USDC
         ↓
-   Privacy Pool (ZK-protected)
+   ShadowPay Escrow → ZK Privacy Pool
         ↓
   ┌─────┼─────┬─────┐
   ↓     ↓     ↓     ↓
 Alice  Bob  Carol  Dave
 (???)  (???) (???)  (???)
 
-On-chain: Only total deposit visible
-Individual payments: INVISIBLE
+Architecture: 100% Decentralized
+User signs all transactions with Phantom
+Individual payments: INVISIBLE (ZK proofs)
 ```
 
 ## ✨ Features
 
 - **Employee Management** - Add, edit, remove employees with encrypted data
-- **Private Payroll** - Execute batch payments privately via Privacy Cash
+- **Private Payroll** - Execute batch payments privately via Radr ShadowPay
 - **Dashboard** - Track treasury, payroll history, next payment dates
 - **Multi-token** - USDC, USDT, SOL support
 - **Wallet Auth** - Sign In With Solana (no passwords)
@@ -46,7 +47,7 @@ Individual payments: INVISIBLE
 - **Frontend**: Next.js 14, TypeScript, TailwindCSS, shadcn/ui
 - **Backend**: Next.js API Routes with Prisma ORM
 - **Database**: PostgreSQL (Supabase)
-- **Privacy**: Privacy Cash SDK
+- **Privacy**: Radr ShadowPay API (ZK transfers)
 - **Blockchain**: Solana, @solana/web3.js
 - **RPC**: Helius (enhanced performance)
 
@@ -96,7 +97,7 @@ stealth-pay/
 - **AES-256-GCM encryption** - All sensitive data encrypted at rest
 - **Rate limiting** - Protection against abuse
 - **Audit logging** - Track all critical actions
-- **Zero-knowledge proofs** - Privacy Cash ensures payment unlinkability
+- **Zero-knowledge proofs** - Radr ShadowPay ensures payment unlinkability
 
 ## 🌐 Environment Variables
 
@@ -129,7 +130,8 @@ HELIUS_API_KEY="your-helius-key"
 
 ## 🔗 Links
 
-- [Privacy Cash](https://github.com/Privacy-Cash/privacy-cash)
+- [Radr ShadowPay API](https://registry.scalar.com/@radr/apis/shadowpay-api)
+- [Radr Labs](https://radr.fun)
 - [Solana Web3.js](https://solana-labs.github.io/solana-web3.js/)
 - [Helius](https://www.helius.dev/)
 

@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "StealthPay | Private Payroll on Solana",
   description:
-    "Payroll where salaries stay confidential. Forever. Built with Privacy Cash on Solana.",
+    "Payroll where salaries stay confidential. Forever. Built with Radr ShadowWire on Solana.",
   keywords: [
     "payroll",
     "privacy",

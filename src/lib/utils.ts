@@ -93,28 +93,67 @@ export function isDev(): boolean {
 }
 
 /**
- * Token mint addresses (devnet)
+ * Get current network from environment
+ */
+export function getSolanaNetwork(): "devnet" | "mainnet-beta" {
+  const network = process.env.NEXT_PUBLIC_SOLANA_NETWORK || "devnet";
+  return network as "devnet" | "mainnet-beta";
+}
+
+/**
+ * Check if we're on mainnet
+ */
+export function isMainnet(): boolean {
+  return getSolanaNetwork() === "mainnet-beta";
+}
+
+/**
+ * Token mint addresses by network
+ */
+const TOKEN_MINTS = {
+  devnet: {
+    SOL: "So11111111111111111111111111111111111111112",
+    USDC: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Devnet USDC faucet
+    USDT: "EJwZgeZrdC8TXTQbQBoL6bfuAnFUUy1PVCMB4DYPzVaS", // Devnet USDT
+  },
+  "mainnet-beta": {
+    SOL: "So11111111111111111111111111111111111111112",
+    USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // Mainnet USDC
+    USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // Mainnet USDT
+  },
+};
+
+/**
+ * Get token addresses for current network
+ */
+function getTokenMints() {
+  const network = getSolanaNetwork();
+  return TOKEN_MINTS[network];
+}
+
+/**
+ * Token configuration (network-aware)
  */
 export const TOKENS = {
   SOL: {
     name: "SOL",
     symbol: "SOL",
     decimals: 9,
-    mint: "So11111111111111111111111111111111111111112",
+    get mint() { return getTokenMints().SOL; },
     icon: "◎",
   },
   USDC: {
     name: "USD Coin",
     symbol: "USDC",
     decimals: 6,
-    mint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Devnet USDC
+    get mint() { return getTokenMints().USDC; },
     icon: "$",
   },
   USDT: {
     name: "Tether",
     symbol: "USDT",
     decimals: 6,
-    mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // Mainnet, use different for devnet
+    get mint() { return getTokenMints().USDT; },
     icon: "₮",
   },
 } as const;

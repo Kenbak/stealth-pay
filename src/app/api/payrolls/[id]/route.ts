@@ -47,6 +47,75 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 /**
+ * PATCH /api/payrolls/[id] - Update payroll status
+ */
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const auditContext = createAuditContext(request.headers);
+
+  try {
+    const { id } = await params;
+    const user = await getAuthUser(request);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const organization = await prisma.organization.findUnique({
+      where: { adminWallet: user.wallet },
+      select: { id: true },
+    });
+
+    if (!organization) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
+    const payroll = await prisma.payroll.findFirst({
+      where: {
+        id,
+        organizationId: organization.id,
+      },
+    });
+
+    if (!payroll) {
+      return NextResponse.json({ error: "Payroll not found" }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const { status } = body;
+
+    if (!status || !["PENDING", "FAILED"].includes(status)) {
+      return NextResponse.json(
+        { error: "Invalid status. Only PENDING or FAILED allowed." },
+        { status: 400 }
+      );
+    }
+
+    await prisma.payroll.update({
+      where: { id },
+      data: { status },
+    });
+
+    await logAudit({
+      action: status === "FAILED" ? "PAYROLL_FAILED" : "PAYROLL_CANCELLED",
+      actorWallet: user.wallet,
+      organizationId: organization.id,
+      resourceType: "payroll",
+      resourceId: id,
+      metadata: { newStatus: status },
+      success: true,
+      ...auditContext,
+    });
+
+    return NextResponse.json({ success: true, status });
+  } catch (error) {
+    console.error("Update payroll status error:", error);
+    return NextResponse.json(
+      { error: "Failed to update payroll status" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * DELETE /api/payrolls/[id] - Cancel/delete a pending payroll
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {

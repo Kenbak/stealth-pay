@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { usePayrolls, type Payroll, type PayrollStatus } from "@/hooks/use-payrolls";
-import { useEmployees, type Employee } from "@/hooks/use-employees";
-import { usePrices } from "@/hooks/use-prices";
+import { useEmployees } from "@/hooks/use-employees";
+import { usePayrollExecution } from "@/hooks/use-payroll-execution";
 import {
   Card,
   CardContent,
@@ -16,24 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Calendar,
   CheckCircle2,
@@ -44,11 +26,13 @@ import {
   Plus,
   Shield,
   Users,
+  X,
   XCircle,
   Zap,
 } from "lucide-react";
 import { formatCurrency, TOKENS } from "@/lib/utils";
 import { format, formatDistanceToNow, isPast } from "date-fns";
+import { calculatePayrollFees } from "@/lib/fees";
 import Link from "next/link";
 
 const statusConfig: Record<PayrollStatus, { label: string; icon: React.ReactNode; className: string }> = {
@@ -91,20 +75,19 @@ export default function PayrollPage() {
     createPayroll,
     isCreating,
     createError,
-    executePayroll,
-    isExecuting,
     pendingPayrolls,
     completedPayrolls,
+    refetch,
   } = usePayrolls();
 
-  const { employees, activeEmployees, isLoading: employeesLoading } = useEmployees();
+  const { activeEmployees, isLoading: employeesLoading } = useEmployees();
 
-  // Create modal state
+  // ShadowWire execution hook
+  const { execute, state: executionState, isExecuting, reset: resetExecution } = usePayrollExecution();
+
+  // Create modal state (native modal)
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newPayroll, setNewPayroll] = useState<{
-    scheduledDate: string;
-    tokenMint: string;
-  }>({
+  const [newPayroll, setNewPayroll] = useState({
     scheduledDate: "",
     tokenMint: TOKENS.USDC.mint,
   });
@@ -112,12 +95,14 @@ export default function PayrollPage() {
   // Selected employees for payroll
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
 
+  // Execution confirmation
+  const [payrollToExecute, setPayrollToExecute] = useState<Payroll | null>(null);
+
   // Initialize with all active employees when modal opens
-  useEffect(() => {
-    if (isCreateOpen) {
-      setSelectedEmployeeIds(new Set(activeEmployees.map((e) => e.id)));
-    }
-  }, [isCreateOpen, activeEmployees]);
+  const handleOpenCreate = () => {
+    setSelectedEmployeeIds(new Set(activeEmployees.map((e) => e.id)));
+    setIsCreateOpen(true);
+  };
 
   // Calculate selected total
   const selectedEmployees = useMemo(() => {
@@ -127,11 +112,6 @@ export default function PayrollPage() {
   const selectedTotal = useMemo(() => {
     return selectedEmployees.reduce((sum, e) => sum + e.salary, 0);
   }, [selectedEmployees]);
-
-  // Execute confirmation
-  const [executingId, setExecutingId] = useState<string | null>(null);
-
-  const canAffordPayroll = true; // TODO: Check treasury balance
 
   const toggleEmployee = (employeeId: string) => {
     const newSet = new Set(selectedEmployeeIds);
@@ -168,16 +148,21 @@ export default function PayrollPage() {
     );
   };
 
-  const handleExecute = (payroll: Payroll) => {
-    if (executingId === payroll.id) {
-      executePayroll(payroll.id, {
-        onSuccess: () => setExecutingId(null),
-        onError: () => setExecutingId(null),
-      });
-    } else {
-      setExecutingId(payroll.id);
-      setTimeout(() => setExecutingId(null), 5000);
+  const handleExecute = async (payroll: Payroll) => {
+    setPayrollToExecute(payroll);
+  };
+
+  const confirmExecute = async () => {
+    if (!payrollToExecute) return;
+
+    const success = await execute(payrollToExecute.id);
+
+    if (success) {
+      refetch();
     }
+
+    setPayrollToExecute(null);
+    resetExecution();
   };
 
   return (
@@ -190,163 +175,13 @@ export default function PayrollPage() {
           </p>
         </div>
 
-        {/* Create Payroll Dialog */}
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button disabled={activeEmployees.length === 0}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Payroll
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Create New Payroll</DialogTitle>
-              <DialogDescription>
-                Select employees and schedule payment. Payments are sent privately via Privacy Cash.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              {/* Employee Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Select Employees</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={toggleAll}
-                    className="h-auto py-1 px-2 text-xs"
-                  >
-                    {selectedEmployeeIds.size === activeEmployees.length
-                      ? "Deselect All"
-                      : "Select All"}
-                  </Button>
-                </div>
-
-                <ScrollArea className="h-[200px] rounded-md border p-2">
-                  {activeEmployees.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground text-sm">
-                      No active employees
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {activeEmployees.map((employee) => (
-                        <label
-                          key={employee.id}
-                          className="flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={selectedEmployeeIds.has(employee.id)}
-                              onCheckedChange={() => toggleEmployee(employee.id)}
-                            />
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-stealth-500/10 flex items-center justify-center text-xs font-medium text-stealth-500">
-                                {employee.name.charAt(0).toUpperCase()}
-                              </div>
-                              <span className="text-sm font-medium">{employee.name}</span>
-                            </div>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {formatCurrency(employee.salary)}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
-
-              {/* Summary */}
-              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Selected employees</span>
-                  <span className="font-medium">
-                    {selectedEmployees.length} / {activeEmployees.length}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm font-semibold">
-                  <span>Total payout</span>
-                  <span className="text-stealth-500">{formatCurrency(selectedTotal)}</span>
-                </div>
-              </div>
-
-              {/* Scheduled Date */}
-              <div className="space-y-2">
-                <Label htmlFor="scheduled-date">
-                  Reminder Date <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="scheduled-date"
-                  type="datetime-local"
-                  value={newPayroll.scheduledDate}
-                  onChange={(e) =>
-                    setNewPayroll({ ...newPayroll, scheduledDate: e.target.value })
-                  }
-                  min={new Date().toISOString().slice(0, 16)}
-                />
-                <div className="flex items-start gap-2 text-xs text-muted-foreground">
-                  <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
-                  <span>
-                    This is a reminder date shown on your dashboard.
-                    You&apos;ll still need to manually execute the payroll.
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment Token */}
-              <div className="space-y-2">
-                <Label>Payment Token</Label>
-                <Select
-                  value={newPayroll.tokenMint}
-                  onValueChange={(value) =>
-                    setNewPayroll({ ...newPayroll, tokenMint: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(TOKENS).map((token) => (
-                      <SelectItem key={token.mint} value={token.mint}>
-                        {token.symbol}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {createError && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 text-red-500 text-sm">
-                  <XCircle className="h-4 w-4" />
-                  <span>{createError.message}</span>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreatePayroll}
-                disabled={isCreating || selectedEmployees.length === 0}
-              >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Shield className="h-4 w-4 mr-2" />
-                    Create Payroll
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button
+          onClick={handleOpenCreate}
+          disabled={activeEmployees.length === 0}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          New Payroll
+        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -452,38 +287,28 @@ export default function PayrollPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {getTokenSymbol(payroll.tokenMint)}
-                      </p>
-                    </div>
+                  {(() => {
+                    const fees = calculatePayrollFees(payroll.totalAmount);
+                    return (
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
+                          <p className="text-xs text-orange-500">
+                            +{formatCurrency(fees.stealthFee + fees.shadowwireFee)} fees
+                          </p>
+                        </div>
 
-                    <Button
-                      onClick={() => handleExecute(payroll)}
-                      disabled={isExecuting || !canAffordPayroll}
-                      variant={executingId === payroll.id ? "default" : "outline"}
-                      className={executingId === payroll.id ? "bg-stealth-500 hover:bg-stealth-600" : ""}
-                    >
-                      {isExecuting && executingId === payroll.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Sending...
-                        </>
-                      ) : executingId === payroll.id ? (
-                        <>
-                          <Shield className="h-4 w-4 mr-2" />
-                          Confirm
-                        </>
-                      ) : (
-                        <>
+                        <Button
+                          onClick={() => handleExecute(payroll)}
+                          disabled={isExecuting}
+                          className="bg-stealth-500 hover:bg-stealth-600"
+                        >
                           <Play className="h-4 w-4 mr-2" />
                           Execute
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                        </Button>
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
             </div>
@@ -519,7 +344,7 @@ export default function PayrollPage() {
                   </Link>
                 </Button>
               ) : (
-                <Button onClick={() => setIsCreateOpen(true)}>
+                <Button onClick={handleOpenCreate}>
                   <Plus className="h-4 w-4 mr-2" />
                   Create First Payroll
                 </Button>
@@ -579,12 +404,320 @@ export default function PayrollPage() {
           <div>
             <h3 className="font-semibold mb-1">100% Private Payments</h3>
             <p className="text-sm text-muted-foreground">
-              All payroll payments are processed through Privacy Cash using zero-knowledge proofs.
+              All payroll payments are processed through Radr ShadowWire using zero-knowledge proofs.
               No one can link deposits to withdrawals, ensuring complete salary confidentiality.
+              You sign all transactions with your wallet - fully decentralized!
             </p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Create Payroll Modal (Native) */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80"
+            onClick={() => setIsCreateOpen(false)}
+          />
+
+          {/* Modal */}
+          <div className="relative z-50 w-full max-w-lg mx-4 bg-background border rounded-lg shadow-lg">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h2 className="text-lg font-semibold">Create New Payroll</h2>
+                <p className="text-sm text-muted-foreground">
+                  Select employees and schedule payment via ShadowWire.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsCreateOpen(false)}
+                className="p-2 hover:bg-accent rounded-md"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {/* Employee Selection */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Select Employees</Label>
+                  <button
+                    onClick={toggleAll}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {selectedEmployeeIds.size === activeEmployees.length
+                      ? "Deselect All"
+                      : "Select All"}
+                  </button>
+                </div>
+
+                <div className="h-[200px] overflow-y-auto rounded-md border p-2">
+                  {activeEmployees.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground text-sm">
+                      No active employees
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {activeEmployees.map((employee) => (
+                        <label
+                          key={employee.id}
+                          className="flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer"
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedEmployeeIds.has(employee.id)}
+                              onChange={() => toggleEmployee(employee.id)}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-stealth-500/10 flex items-center justify-center text-xs font-medium text-stealth-500">
+                                {employee.name.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm font-medium">{employee.name}</span>
+                            </div>
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {formatCurrency(employee.salary)}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                {(() => {
+                  const fees = calculatePayrollFees(selectedTotal);
+                  return (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Selected employees</span>
+                        <span className="font-medium">
+                          {selectedEmployees.length} / {activeEmployees.length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Salaries</span>
+                        <span>{formatCurrency(fees.salaries)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">StealthPay fee ({fees.stealthFeeRate}%)</span>
+                        <span className="text-orange-500">+{formatCurrency(fees.stealthFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Relayer fee ({fees.shadowwireFeeRate}%)</span>
+                        <span className="text-orange-500">+{formatCurrency(fees.shadowwireFee)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold border-t pt-2">
+                        <span>Total cost</span>
+                        <span className="text-stealth-500">{formatCurrency(fees.totalCost)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Scheduled Date */}
+              <div className="space-y-2">
+                <Label htmlFor="scheduled-date">
+                  Reminder Date <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="scheduled-date"
+                  type="datetime-local"
+                  value={newPayroll.scheduledDate}
+                  onChange={(e) =>
+                    setNewPayroll({ ...newPayroll, scheduledDate: e.target.value })
+                  }
+                  min={new Date().toISOString().slice(0, 16)}
+                />
+                <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                  <span>
+                    This is a reminder date. You&apos;ll still need to manually execute.
+                  </span>
+                </div>
+              </div>
+
+              {/* Payment Token */}
+              <div className="space-y-2">
+                <Label htmlFor="token-select">Payment Token</Label>
+                <select
+                  id="token-select"
+                  value={newPayroll.tokenMint}
+                  onChange={(e) =>
+                    setNewPayroll({ ...newPayroll, tokenMint: e.target.value })
+                  }
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {Object.values(TOKENS).map((token) => (
+                    <option key={token.mint} value={token.mint}>
+                      {token.symbol}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {createError && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 text-red-500 text-sm">
+                  <XCircle className="h-4 w-4" />
+                  <span>{createError.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 p-6 border-t">
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreatePayroll}
+                disabled={isCreating || selectedEmployees.length === 0}
+              >
+                {isCreating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Create Payroll
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Execute Confirmation Modal (Native) */}
+      {payrollToExecute && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80"
+            onClick={() => !isExecuting && setPayrollToExecute(null)}
+          />
+
+          {/* Modal */}
+          <div className="relative z-50 w-full max-w-md mx-4 bg-background border rounded-lg shadow-lg">
+            {/* Header */}
+            <div className="p-6 border-b">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-stealth-500" />
+                <h2 className="text-lg font-semibold">Execute Private Payroll</h2>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <p className="text-muted-foreground">
+                You are about to send{" "}
+                <strong className="text-foreground">{formatCurrency(payrollToExecute.totalAmount)}</strong>{" "}
+                to{" "}
+                <strong className="text-foreground">
+                  {payrollToExecute.employeeCount} employee
+                  {payrollToExecute.employeeCount !== 1 ? "s" : ""}
+                </strong>{" "}
+                via ShadowWire.
+              </p>
+              {(() => {
+                const fees = calculatePayrollFees(payrollToExecute.totalAmount);
+                return (
+                  <div className="text-sm bg-muted/50 p-3 rounded-lg space-y-1">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Salaries</span>
+                      <span>{formatCurrency(fees.salaries)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>StealthPay fee ({fees.stealthFeeRate}%)</span>
+                      <span className="text-orange-500">+{formatCurrency(fees.stealthFee)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Relayer fee ({fees.shadowwireFeeRate}%)</span>
+                      <span className="text-orange-500">+{formatCurrency(fees.shadowwireFee)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium border-t pt-1">
+                      <span>Total from treasury</span>
+                      <span>{formatCurrency(fees.totalCost)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {isExecuting && (
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-stealth-500" />
+                    <span className="font-medium">{executionState.message}</span>
+                  </div>
+                  {executionState.step === "signing" && (
+                    <p className="text-sm text-muted-foreground">
+                      Check your wallet for transaction approval
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {!isExecuting && (
+                <div className="bg-stealth-500/10 p-4 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <Info className="h-4 w-4 text-stealth-500 mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-stealth-600 dark:text-stealth-400">
+                        You will sign {payrollToExecute.employeeCount} transaction{payrollToExecute.employeeCount !== 1 ? "s" : ""} at once
+                      </p>
+                      <p className="text-muted-foreground mt-1">
+                        All payments are sent privately using zero-knowledge proofs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 p-6 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPayrollToExecute(null);
+                  resetExecution();
+                }}
+                disabled={isExecuting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmExecute}
+                disabled={isExecuting}
+                className="bg-stealth-500 hover:bg-stealth-600"
+              >
+                {isExecuting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Sign & Execute
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

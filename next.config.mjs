@@ -7,6 +7,7 @@ const nextConfig = {
     },
   },
 
+
   // Security headers
   async headers() {
     return [
@@ -47,8 +48,9 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // Tailwind + Google Fonts
               "img-src 'self' data: https:",
               "font-src 'self' data: https://fonts.gstatic.com",
-              // Connect to: Solana RPCs, Jupiter (prices), Helius (sponsor), Supabase
-              "connect-src 'self' https://*.solana.com https://*.quicknode.com https://*.helius-rpc.com https://api.helius.xyz https://api.jup.ag https://*.supabase.co wss://*.solana.com",
+              // Connect to: Solana RPCs, Jupiter (prices + swap), Helius, Supabase, Radr ShadowPay
+              // Note: wss://*.helius-rpc.com needed for transaction confirmation
+              "connect-src 'self' https://*.solana.com https://*.quicknode.com https://*.helius-rpc.com https://api.helius.xyz https://api.jup.ag https://quote-api.jup.ag https://*.supabase.co https://shadow.radr.fun https://*.radr.fun wss://*.solana.com wss://*.helius-rpc.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

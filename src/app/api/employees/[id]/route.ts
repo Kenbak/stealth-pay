@@ -15,9 +15,10 @@ import { logAudit, createAuditContext } from "@/lib/audit-log";
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await getAuthUser(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,7 +35,7 @@ export async function GET(
 
     const employee = await prisma.employee.findFirst({
       where: {
-        id: params.id,
+        id: id,
         organizationId: organization.id,
       },
     });
@@ -81,11 +82,12 @@ export async function GET(
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auditContext = createAuditContext(request.headers);
 
   try {
+    const { id } = await params;
     const user = await getAuthUser(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -102,7 +104,7 @@ export async function PATCH(
 
     const employee = await prisma.employee.findFirst({
       where: {
-        id: params.id,
+        id: id,
         organizationId: organization.id,
       },
     });
@@ -142,7 +144,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.employee.update({
-      where: { id: params.id },
+      where: { id: id },
       data: updateData,
     });
 
@@ -151,7 +153,7 @@ export async function PATCH(
       actorWallet: user.wallet,
       organizationId: organization.id,
       resourceType: "employee",
-      resourceId: params.id,
+      resourceId: id,
       success: true,
       ...auditContext,
     });
@@ -199,11 +201,12 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const auditContext = createAuditContext(request.headers);
 
   try {
+    const { id } = await params;
     const user = await getAuthUser(request);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -220,7 +223,7 @@ export async function DELETE(
 
     const employee = await prisma.employee.findFirst({
       where: {
-        id: params.id,
+        id: id,
         organizationId: organization.id,
       },
     });
@@ -230,7 +233,7 @@ export async function DELETE(
     }
 
     await prisma.employee.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     await logAudit({
@@ -238,7 +241,7 @@ export async function DELETE(
       actorWallet: user.wallet,
       organizationId: organization.id,
       resourceType: "employee",
-      resourceId: params.id,
+      resourceId: id,
       success: true,
       ...auditContext,
     });

@@ -9,17 +9,18 @@ interface RouteParams {
 }
 
 /**
- * POST /api/payrolls/[id]/execute - Execute a payroll
+ * POST /api/payrolls/[id]/prepare - Prepare a payroll for execution
  *
- * This triggers the private payment flow:
- * 1. Validate organization has sufficient funds
- * 2. Mark payroll as PROCESSING
- * 3. For each employee payment:
- *    - Decrypt wallet address
- *    - Queue for Radr ShadowWire transfer
- * 4. Mark as COMPLETED when all transfers succeed
+ * This endpoint:
+ * 1. Validates the payroll and authorization
+ * 2. Decrypts employee wallet addresses and salaries
+ * 3. Returns the payment data for client-side ShadowWire execution
  *
- * NOTE: Radr ShadowWire API integration goes here
+ * The client will then:
+ * 1. Call ShadowWire API to get unsigned transactions
+ * 2. User signs with their wallet
+ * 3. Transactions are submitted to blockchain
+ * 4. Client calls /finalize with signatures
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   const auditContext = createAuditContext(request.headers);
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: payrollId } = await params;
     const user = await getAuthUser(request);
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -72,77 +74,41 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Decrypt employee data
+    const masterKey = getMasterKey();
+    const orgKey = EncryptionService.decryptOrgKey(organization.encryptionKey, masterKey);
+
+    const payments = payroll.payments.map((payment) => {
+      const walletAddress = EncryptionService.decrypt(
+        payment.employee.walletAddressEncrypted,
+        orgKey
+      );
+      const salary = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
+      const name = EncryptionService.decrypt(payment.employee.nameEncrypted, orgKey);
+
+      return {
+        paymentId: payment.id,
+        employeeId: payment.employeeId,
+        employeeName: name,
+        walletAddress,
+        amount: salary,
+      };
+    });
+
     // Mark as processing
     await prisma.payroll.update({
       where: { id: payrollId },
       data: { status: "PROCESSING" },
     });
 
-    // Decrypt employee data
-    const masterKey = getMasterKey();
-    const orgKey = EncryptionService.decryptOrgKey(organization.encryptionKey, masterKey);
-
-    const paymentsToProcess = payroll.payments.map((payment) => {
-      const walletAddress = EncryptionService.decrypt(
-        payment.employee.walletAddressEncrypted,
-        orgKey
-      );
-      const salary = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
-
-      return {
-        paymentId: payment.id,
-        employeeId: payment.employeeId,
-        walletAddress,
-        amount: salary,
-      };
-    });
-
-    // TODO: Integrate Radr ShadowWire API here
-    // For now, simulate successful execution
-    //
-    // In production:
-    // 1. For each employee, call ShadowWire API to prepare ZK transfer
-    // 2. Return unsigned transactions to frontend
-    // 3. User signs all transactions with Phantom
-    // 4. Submit transactions to blockchain
-    // 5. Update payment records with signatures
-
-    console.log(`[PAYROLL EXECUTE] Processing ${paymentsToProcess.length} payments`);
-    console.log(`[PAYROLL EXECUTE] Total: ${payroll.totalAmount} ${payroll.tokenMint}`);
-
-    // Simulate processing delay (remove in production)
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Mark all payments as completed
-    await prisma.$transaction([
-      // Update all payments
-      ...paymentsToProcess.map((p) =>
-        prisma.payment.update({
-          where: { id: p.paymentId },
-          data: {
-            status: "COMPLETED",
-            // In production: withdrawTxHash: txSignature
-          },
-        })
-      ),
-      // Update payroll
-      prisma.payroll.update({
-        where: { id: payrollId },
-        data: {
-          status: "COMPLETED",
-          executedAt: new Date(),
-        },
-      }),
-    ]);
-
     await logAudit({
-      action: "PAYROLL_EXECUTED",
+      action: "PAYROLL_PREPARED",
       actorWallet: user.wallet,
       organizationId: organization.id,
       resourceType: "payroll",
       resourceId: payrollId,
       metadata: {
-        paymentCount: paymentsToProcess.length,
+        paymentCount: payments.length,
         totalAmount: Number(payroll.totalAmount),
         tokenMint: payroll.tokenMint,
       },
@@ -151,30 +117,18 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     return NextResponse.json({
-      success: true,
-      payroll: {
-        id: payrollId,
-        status: "COMPLETED",
-        executedAt: new Date().toISOString(),
-        paymentsProcessed: paymentsToProcess.length,
-      },
+      payrollId,
+      status: "PROCESSING",
+      tokenMint: payroll.tokenMint,
+      totalAmount: Number(payroll.totalAmount),
+      payments,
     });
-  } catch (error) {
-    console.error("Execute payroll error:", error);
 
-    // Try to mark as failed
-    try {
-      const { id: payrollId } = await params;
-      await prisma.payroll.update({
-        where: { id: payrollId },
-        data: { status: "FAILED" },
-      });
-    } catch {
-      // Ignore
-    }
+  } catch (error) {
+    console.error("Prepare payroll error:", error);
 
     await logAudit({
-      action: "PAYROLL_EXECUTED",
+      action: "PAYROLL_PREPARED",
       actorWallet: null,
       organizationId: null,
       success: false,
@@ -183,7 +137,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
     return NextResponse.json(
-      { error: "Failed to execute payroll" },
+      { error: "Failed to prepare payroll" },
       { status: 500 }
     );
   }

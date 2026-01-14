@@ -30,7 +30,8 @@ export function QuickActions() {
   const { balance } = useTreasury();
 
   const hasEmployees = activeEmployees.length > 0;
-  const hasFunds = balance.totalUsd >= totalSalary && totalSalary > 0;
+  // USDC only - compare USDC balance directly to salary (also in USD/USDC)
+  const hasFunds = balance.poolUsdc >= totalSalary && totalSalary > 0;
   const canRunPayroll = hasEmployees && hasFunds;
 
   // Reason why payroll can't run

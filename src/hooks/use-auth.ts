@@ -27,12 +27,41 @@ export function useAuth() {
     organization: null,
   });
 
-  // Check if already authenticated
+  // Check if already authenticated AND wallet matches
   useEffect(() => {
     const token = localStorage.getItem("auth-token");
     const orgData = localStorage.getItem("organization");
+    const storedWallet = localStorage.getItem("auth-wallet");
+    const currentWallet = publicKey?.toBase58();
 
-    if (token && connected && publicKey) {
+    // If wallet changed or disconnected, clear auth
+    if (storedWallet && storedWallet !== currentWallet) {
+      console.log("[AUTH] Wallet changed, clearing auth");
+      localStorage.removeItem("auth-token");
+      localStorage.removeItem("organization");
+      localStorage.removeItem("auth-wallet");
+      setAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        token: null,
+        organization: null,
+      });
+      return;
+    }
+
+    // If disconnected, clear auth state
+    if (!connected || !publicKey) {
+      setAuthState((prev) => ({
+        ...prev,
+        isAuthenticated: false,
+        token: null,
+        organization: null,
+      }));
+      return;
+    }
+
+    // If token exists and wallet matches, restore auth
+    if (token && storedWallet === currentWallet) {
       setAuthState({
         isAuthenticated: true,
         isLoading: false,
@@ -101,8 +130,9 @@ export function useAuth() {
 
       const { token, organization } = await verifyRes.json();
 
-      // Store in localStorage
+      // Store in localStorage (including wallet to detect changes)
       localStorage.setItem("auth-token", token);
+      localStorage.setItem("auth-wallet", wallet);
       if (organization) {
         localStorage.setItem("organization", JSON.stringify(organization));
       }
@@ -146,6 +176,7 @@ export function useAuth() {
   const logout = useCallback(() => {
     localStorage.removeItem("auth-token");
     localStorage.removeItem("organization");
+    localStorage.removeItem("auth-wallet");
     setAuthState({
       isAuthenticated: false,
       isLoading: false,

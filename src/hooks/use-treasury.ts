@@ -2,52 +2,91 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useAuth } from "./use-auth";
+import { getPoolBalance, fromSmallestUnit } from "@/lib/shadowwire";
+import { usePrices } from "./use-prices";
 
 interface TreasuryBalance {
-  sol: number;
-  usdc: number; // Will be 0 for now (need SPL token integration)
+  // Wallet balance
+  walletSol: number;
+  walletUsdc: number;
+  // Pool balance (ShadowWire - ready for private payroll)
+  poolSol: number;
+  poolUsdc: number;
+  // Total in USD
   totalUsd: number;
+  // Pool total (what matters for payroll)
+  poolTotalUsd: number;
 }
-
-// USDC devnet mint
-const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
 export function useTreasury() {
   const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
   const { isAuthenticated } = useAuth();
+  const { getPrice } = usePrices();
 
   const { data: balance, isLoading, error, refetch } = useQuery({
     queryKey: ["treasury", publicKey?.toBase58()],
     queryFn: async (): Promise<TreasuryBalance> => {
       if (!publicKey) {
-        return { sol: 0, usdc: 0, totalUsd: 0 };
+        return {
+          walletSol: 0, walletUsdc: 0,
+          poolSol: 0, poolUsdc: 0,
+          totalUsd: 0, poolTotalUsd: 0
+        };
       }
 
+      const wallet = publicKey.toBase58();
+
       try {
-        // Get SOL balance
+        // Get wallet SOL balance
         const solBalance = await connection.getBalance(publicKey);
-        const sol = solBalance / LAMPORTS_PER_SOL;
+        const walletSol = solBalance / LAMPORTS_PER_SOL;
 
-        // For now, assume 1 SOL = $150 (in production, use price oracle)
-        const solPrice = 150;
+        // Get pool balances from ShadowWire
+        let poolSol = 0;
+        let poolUsdc = 0;
 
-        // TODO: Get USDC balance from SPL token account
-        // For MVP, we'll just use SOL
-        const usdc = 0;
+        try {
+          const [solPoolBalance, usdcPoolBalance] = await Promise.allSettled([
+            getPoolBalance(wallet, 'SOL'),
+            getPoolBalance(wallet, 'USDC'),
+          ]);
 
-        const totalUsd = sol * solPrice + usdc;
+          if (solPoolBalance.status === 'fulfilled') {
+            poolSol = fromSmallestUnit(solPoolBalance.value.available, 'SOL');
+          }
+          if (usdcPoolBalance.status === 'fulfilled') {
+            poolUsdc = fromSmallestUnit(usdcPoolBalance.value.available, 'USDC');
+          }
+        } catch (err) {
+          console.warn('[TREASURY] Failed to fetch pool balance:', err);
+        }
+
+        // Calculate USD values
+        const solPrice = getPrice('SOL') || 190; // Fallback price
+        const walletUsdc = 0; // TODO: Fetch wallet USDC balance
+
+        const walletTotalUsd = walletSol * solPrice + walletUsdc;
+        const poolTotalUsd = poolSol * solPrice + poolUsdc;
+        const totalUsd = walletTotalUsd + poolTotalUsd;
 
         return {
-          sol,
-          usdc,
+          walletSol,
+          walletUsdc,
+          poolSol,
+          poolUsdc,
           totalUsd,
+          poolTotalUsd,
         };
       } catch (err) {
-        console.error("Failed to fetch treasury balance:", err);
-        return { sol: 0, usdc: 0, totalUsd: 0 };
+        console.error("[TREASURY] Failed to fetch treasury balance:", err);
+        return {
+          walletSol: 0, walletUsdc: 0,
+          poolSol: 0, poolUsdc: 0,
+          totalUsd: 0, poolTotalUsd: 0
+        };
       }
     },
     enabled: connected && isAuthenticated && !!publicKey,
@@ -56,7 +95,11 @@ export function useTreasury() {
   });
 
   return {
-    balance: balance || { sol: 0, usdc: 0, totalUsd: 0 },
+    balance: balance || {
+      walletSol: 0, walletUsdc: 0,
+      poolSol: 0, poolUsdc: 0,
+      totalUsd: 0, poolTotalUsd: 0
+    },
     isLoading,
     error,
     refetch,

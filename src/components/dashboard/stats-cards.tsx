@@ -18,8 +18,11 @@ export function StatsCards() {
 
   const isLoading = orgLoading || empLoading || treasuryLoading || payrollLoading;
 
-  // Check if treasury has enough for payroll
-  const needsFunding = balance.totalUsd < totalSalary && totalSalary > 0;
+  // Check if treasury (pool) has enough for payroll - USDC only
+  const needsFunding = balance.poolUsdc < totalSalary && totalSalary > 0;
+
+  // Treasury display - USDC only (simplified UX)
+  const treasuryDisplay = `${balance.poolUsdc.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`;
 
   // Check if payroll can be configured (need employees first)
   const hasEmployees = activeEmployees.length > 0;
@@ -104,12 +107,12 @@ export function StatsCards() {
     },
     {
       name: "Treasury",
-      value: isLoading ? null : `${formatSol(balance.sol)} SOL`,
+      value: isLoading ? null : treasuryDisplay,
       subtitle: isLoading
         ? null
         : needsFunding
           ? "⚠️ Low funds - add more"
-          : `≈ ${formatCurrency(balance.totalUsd)}`,
+          : "Ready for payroll",
       icon: needsFunding ? AlertTriangle : Vault,
       color: needsFunding ? "text-yellow-500" : "text-purple-500",
       bgColor: needsFunding ? "bg-yellow-500/10" : "bg-purple-500/10",
