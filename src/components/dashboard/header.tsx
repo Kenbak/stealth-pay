@@ -5,6 +5,7 @@ import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { Menu, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
+import { NetworkBadge, HeliusBadge } from "@/components/network-badge";
 
 export function Header() {
   const { connected } = useWallet();
@@ -25,8 +26,10 @@ export function Header() {
       <div className="h-6 w-px bg-border lg:hidden" />
 
       <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-        <div className="flex flex-1 items-center">
-          {/* Search or breadcrumbs could go here */}
+        <div className="flex flex-1 items-center gap-2">
+          {/* Network & Helius badges */}
+          <NetworkBadge />
+          <HeliusBadge />
         </div>
 
         <div className="flex items-center gap-x-4">

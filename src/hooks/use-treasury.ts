@@ -6,6 +6,10 @@ import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useAuth } from "./use-auth";
 import { getPoolBalance, fromSmallestUnit } from "@/lib/shadowwire";
 import { usePrices } from "./use-prices";
+import { getTokenBalances, isHeliusConfigured } from "@/lib/helius";
+
+// USDC mint address
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 interface TreasuryBalance {
   // Wallet balance
@@ -44,6 +48,21 @@ export function useTreasury() {
         const solBalance = await connection.getBalance(publicKey);
         const walletSol = solBalance / LAMPORTS_PER_SOL;
 
+        // Get wallet USDC balance using Helius DAS API
+        let walletUsdc = 0;
+        if (isHeliusConfigured()) {
+          try {
+            const tokenBalances = await getTokenBalances(wallet);
+            const usdcBalance = tokenBalances.find(t => t.mint === USDC_MINT);
+            if (usdcBalance) {
+              walletUsdc = usdcBalance.amount;
+              console.log('[TREASURY] Helius USDC balance:', walletUsdc);
+            }
+          } catch (err) {
+            console.warn('[TREASURY] Helius token balance failed, using fallback:', err);
+          }
+        }
+
         // Get pool balances from ShadowWire
         let poolSol = 0;
         let poolUsdc = 0;
@@ -66,7 +85,6 @@ export function useTreasury() {
 
         // Calculate USD values
         const solPrice = getPrice('SOL') || 190; // Fallback price
-        const walletUsdc = 0; // TODO: Fetch wallet USDC balance
 
         const walletTotalUsd = walletSol * solPrice + walletUsdc;
         const poolTotalUsd = poolSol * solPrice + poolUsdc;

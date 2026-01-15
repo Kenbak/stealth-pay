@@ -28,10 +28,9 @@ import {
   Zap,
   ExternalLink,
   Clock,
-  TrendingUp,
-  TrendingDown,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { isHeliusConfigured } from "@/lib/helius";
 import { useEmployees } from "@/hooks/use-employees";
 import { usePrices } from "@/hooks/use-prices";
 import { useShadowWire } from "@/hooks/use-shadowwire";
@@ -84,24 +83,25 @@ export default function TreasuryPage() {
   // Treasury is always USDC (simplified UX)
   const treasuryBalance = poolBalance.usdc;
 
-  // Fetch treasury transactions
-  const { data: transactionsData, refetch: refetchTransactions } = useQuery({
-    queryKey: ["treasury-transactions"],
+  // Fetch on-chain transaction history via Helius
+  const { data: onchainData, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
+    queryKey: ["treasury-history", publicKey?.toBase58()],
     queryFn: async () => {
       const token = localStorage.getItem("auth-token");
       if (!token) return { transactions: [] };
 
-      const res = await fetch("/api/treasury/transactions", {
+      const res = await fetch("/api/treasury/history?limit=30", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return { transactions: [] };
       return res.json();
     },
-    enabled: connected,
-    refetchInterval: 30000, // Refetch every 30s
+    enabled: connected && isHeliusConfigured(),
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 60000, // Refetch every minute
   });
 
-  const transactions = transactionsData?.transactions || [];
+  const onchainTransactions = onchainData?.transactions || [];
 
   // Get SOL price for swap calculations
   const solPrice = getPrice("SOL");
@@ -783,103 +783,153 @@ export default function TreasuryPage() {
         </CardContent>
       </Card>
 
-      {/* Transaction History */}
+      {/* Deposit History */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Transaction History
+                Deposit History
               </CardTitle>
-              <CardDescription>Recent deposits and withdrawals</CardDescription>
+              <CardDescription>Recent deposits to privacy pool</CardDescription>
             </div>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => refetchTransactions()}
+              onClick={() => refetchHistory()}
+              disabled={isLoadingHistory}
             >
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className={`h-4 w-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {transactions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Wallet className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p>No transactions yet</p>
-              <p className="text-sm">Make your first deposit to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {transactions.map((tx: {
-                id: string;
+          {(
+            /* ON-CHAIN HISTORY - From Helius */
+            (() => {
+              // USDC mint addresses
+              const USDC_MINTS = [
+                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // Mainnet
+                "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Devnet
+              ];
+
+              const walletAddr = publicKey?.toBase58() || "";
+
+              // Filter to only show Treasury Deposits (UNKNOWN type with outgoing USDC)
+              // These are the ShadowWire escrow deposits
+              const usdcTransactions = onchainTransactions.filter((tx: {
                 type: string;
-                amount: number;
-                tokenMint: string;
-                txHash: string;
-                feeAmount?: number;
-                createdAt: string;
+                transfers: {
+                  token: Array<{ mint: string; from: string; amount: number }>;
+                };
               }) => {
-                const isDeposit = tx.type === "DEPOSIT";
-                const isWithdraw = tx.type === "WITHDRAW";
-                const tokenSymbol = tx.tokenMint.includes("EPjFWdd5") ? "USDC" : "SOL";
+                // Must have USDC transfers
+                const hasUsdc = tx.transfers?.token?.some(t => USDC_MINTS.includes(t.mint));
+                if (!hasUsdc) return false;
 
+                // Must be UNKNOWN type (ShadowWire deposits show as UNKNOWN)
+                // and have outgoing USDC from our wallet
+                const isDeposit = tx.type === "UNKNOWN" &&
+                  tx.transfers?.token?.some(t =>
+                    USDC_MINTS.includes(t.mint) &&
+                    t.from === walletAddr &&
+                    t.amount > 1 // Filter out small amounts (fees)
+                  );
+
+                return isDeposit;
+              });
+
+              if (isLoadingHistory) {
                 return (
-                  <div
-                    key={tx.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
-                        isDeposit
-                          ? "bg-green-500/10 text-green-500"
-                          : isWithdraw
-                          ? "bg-orange-500/10 text-orange-500"
-                          : "bg-blue-500/10 text-blue-500"
-                      }`}>
-                        {isDeposit ? (
-                          <TrendingUp className="h-4 w-4" />
-                        ) : isWithdraw ? (
-                          <TrendingDown className="h-4 w-4" />
-                        ) : (
-                          <ArrowUpFromLine className="h-4 w-4" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">
-                          {isDeposit ? "Deposit" : isWithdraw ? "Withdraw" : "Payroll"}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(tx.createdAt), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className={`font-medium ${isDeposit ? "text-green-500" : ""}`}>
-                          {isDeposit ? "+" : "-"}{tx.amount.toFixed(2)} {tokenSymbol}
-                        </p>
-                        {tx.feeAmount && (
-                          <p className="text-xs text-muted-foreground">
-                            Fee: {tx.feeAmount.toFixed(2)}
-                          </p>
-                        )}
-                      </div>
-                      <a
-                        href={`https://solscan.io/tx/${tx.txHash}${!isMainnet ? "?cluster=devnet" : ""}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </div>
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-stealth-500" />
+                    <span className="ml-2 text-muted-foreground">Loading deposits...</span>
                   </div>
                 );
-              })}
-            </div>
+              }
+
+              if (usdcTransactions.length === 0) {
+                return (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Shield className="h-10 w-10 mx-auto mb-3 opacity-50" />
+                    <p>No deposits found</p>
+                    <p className="text-sm">Treasury deposits will appear here</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {usdcTransactions.map((tx: {
+                    signature: string;
+                    timestamp: number;
+                    type: string;
+                    transfers: {
+                      token: Array<{ from: string; to: string; amount: number; mint: string }>;
+                    };
+                  }) => {
+                    // Find the main USDC transfer (the deposit amount)
+                    const usdcTransfer = tx.transfers.token.find(t =>
+                      USDC_MINTS.includes(t.mint) &&
+                      t.from === walletAddr &&
+                      t.amount > 1
+                    );
+
+                    const depositAmount = usdcTransfer?.amount || 0;
+
+                    return (
+                      <div
+                        key={tx.signature}
+                        className="flex items-center justify-between p-3 rounded-lg border border-stealth-500/20 hover:bg-stealth-500/5 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center bg-stealth-500/10 text-stealth-500">
+                            <Shield className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">
+                              Deposit
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Funded privacy pool
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {tx.timestamp ? formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) : ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="font-medium text-stealth-500">
+                              {depositAmount.toFixed(2)} USDC
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {tx.signature.slice(0, 8)}...
+                            </p>
+                          </div>
+                          <a
+                            href={`https://solscan.io/tx/${tx.signature}${!isMainnet ? "?cluster=devnet" : ""}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-stealth-500 hover:text-stealth-600"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Helius attribution */}
+                  <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
+                    <Zap className="h-3 w-3 text-orange-500" />
+                    Powered by Helius Enhanced APIs
+                  </div>
+                </div>
+              );
+            })()
           )}
         </CardContent>
       </Card>

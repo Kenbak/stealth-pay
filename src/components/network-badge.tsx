@@ -2,7 +2,14 @@
 
 import { Badge } from "@/components/ui/badge";
 import { getSolanaNetwork, isMainnet } from "@/lib/utils";
-import { Globe, TestTube2 } from "lucide-react";
+import { Globe, TestTube2, Zap } from "lucide-react";
+
+/**
+ * Check if Helius is configured (client-side)
+ */
+function useHeliusConfigured(): boolean {
+  return !!process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+}
 
 /**
  * Network indicator badge
@@ -32,6 +39,27 @@ export function NetworkBadge() {
           Devnet
         </>
       )}
+    </Badge>
+  );
+}
+
+/**
+ * Helius RPC badge
+ * Shows that Helius enhanced RPC is being used
+ */
+export function HeliusBadge() {
+  const heliusConfigured = useHeliusConfigured();
+
+  if (!heliusConfigured) return null;
+
+  return (
+    <Badge
+      variant="outline"
+      className="gap-1.5 border-orange-500/50 bg-orange-500/10 text-orange-600 dark:text-orange-400"
+      title="Powered by Helius RPC - Enhanced performance & APIs"
+    >
+      <Zap className="h-3 w-3" />
+      Helius
     </Badge>
   );
 }
