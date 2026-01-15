@@ -37,17 +37,17 @@ export function SetupOrganization() {
   };
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center">
+    <div className="min-h-[60vh] flex items-center justify-center animate-in">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 bg-stealth-500/10 rounded-xl flex items-center justify-center mb-4">
+          <div className="mx-auto w-14 h-14 bg-amber-500/10 rounded-2xl flex items-center justify-center mb-4">
             {step === "auth" ? (
-              <Shield className="w-6 h-6 text-stealth-500" />
+              <Shield className="w-7 h-7 text-amber-500" />
             ) : (
-              <Building2 className="w-6 h-6 text-stealth-500" />
+              <Building2 className="w-7 h-7 text-amber-500" />
             )}
           </div>
-          <CardTitle>
+          <CardTitle className="font-display text-xl">
             {step === "auth" ? "Sign In to Continue" : "Create Your Organization"}
           </CardTitle>
           <CardDescription>

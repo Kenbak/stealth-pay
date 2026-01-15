@@ -24,7 +24,10 @@ export type AuditAction =
   | "DEPOSIT_INITIATED"
   | "DEPOSIT_COMPLETED"
   | "SETTINGS_UPDATED"
-  | "EXPORT_GENERATED";
+  | "EXPORT_GENERATED"
+  | "INVOICE_CREATED"
+  | "INVOICE_UPDATED"
+  | "INVOICE_PAID";
 
 export interface AuditLogEntry {
   timestamp: Date;

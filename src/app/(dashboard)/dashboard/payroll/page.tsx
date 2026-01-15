@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { usePayrolls, type Payroll, type PayrollStatus } from "@/hooks/use-payrolls";
+import { usePayrolls, type Payroll, type PayrollStatus, type PayrollDetail } from "@/hooks/use-payrolls";
 import { useEmployees } from "@/hooks/use-employees";
 import { usePayrollExecution } from "@/hooks/use-payroll-execution";
 import {
@@ -19,21 +19,43 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Calendar,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Clock,
+  Copy,
+  Download,
+  ExternalLink,
+  FileJson,
+  FileSpreadsheet,
   Info,
   Loader2,
   Play,
   Plus,
   Shield,
   Users,
+  Wallet,
   X,
   XCircle,
   Zap,
 } from "lucide-react";
+import { USDCIcon } from "@/components/icons/token-icons";
 import { formatCurrency, TOKENS } from "@/lib/utils";
 import { format, formatDistanceToNow, isPast } from "date-fns";
 import { calculatePayrollFees } from "@/lib/fees";
+import {
+  downloadPayrollsCSV,
+  downloadPayrollsJSON,
+  downloadPayrollDetailCSV,
+  downloadPayrollDetailJSON,
+  type PayrollDetailExport,
+} from "@/lib/export";
 import Link from "next/link";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const statusConfig: Record<PayrollStatus, { label: string; icon: React.ReactNode; className: string }> = {
   PENDING: {
@@ -44,7 +66,7 @@ const statusConfig: Record<PayrollStatus, { label: string; icon: React.ReactNode
   SCHEDULED: {
     label: "Scheduled",
     icon: <Calendar className="h-3 w-3" />,
-    className: "bg-stealth-500/10 text-stealth-500",
+    className: "bg-amber-500/10 text-amber-500",
   },
   PROCESSING: {
     label: "Processing",
@@ -54,7 +76,7 @@ const statusConfig: Record<PayrollStatus, { label: string; icon: React.ReactNode
   COMPLETED: {
     label: "Completed",
     icon: <CheckCircle2 className="h-3 w-3" />,
-    className: "bg-green-500/10 text-green-500",
+    className: "bg-teal-500/10 text-teal-500",
   },
   FAILED: {
     label: "Failed",
@@ -78,6 +100,7 @@ export default function PayrollPage() {
     pendingPayrolls,
     completedPayrolls,
     refetch,
+    getPayrollDetail,
   } = usePayrolls();
 
   const { activeEmployees, isLoading: employeesLoading } = useEmployees();
@@ -97,6 +120,10 @@ export default function PayrollPage() {
 
   // Execution confirmation
   const [payrollToExecute, setPayrollToExecute] = useState<Payroll | null>(null);
+
+  // Detail modal
+  const [selectedPayroll, setSelectedPayroll] = useState<PayrollDetail | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   // Initialize with all active employees when modal opens
   const handleOpenCreate = () => {
@@ -148,6 +175,15 @@ export default function PayrollPage() {
     );
   };
 
+  const handleViewDetail = async (payroll: Payroll) => {
+    setIsLoadingDetail(true);
+    const detail = await getPayrollDetail(payroll.id);
+    if (detail) {
+      setSelectedPayroll(detail);
+    }
+    setIsLoadingDetail(false);
+  };
+
   const handleExecute = async (payroll: Payroll) => {
     setPayrollToExecute(payroll);
   };
@@ -175,13 +211,38 @@ export default function PayrollPage() {
           </p>
         </div>
 
-        <Button
-          onClick={handleOpenCreate}
-          disabled={activeEmployees.length === 0}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Payroll
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* Export Dropdown */}
+          {payrolls.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                  <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => downloadPayrollsCSV(payrolls)}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadPayrollsJSON(payrolls)}>
+                  <FileJson className="h-4 w-4 mr-2" />
+                  Export as JSON
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          <Button
+            onClick={handleOpenCreate}
+            disabled={activeEmployees.length === 0}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            New Payroll
+          </Button>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -232,7 +293,7 @@ export default function PayrollPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-stealth-500">
+            <div className="text-2xl font-bold text-teal-500">
               {completedPayrolls.length}
             </div>
           </CardContent>
@@ -241,10 +302,10 @@ export default function PayrollPage() {
 
       {/* Pending Payrolls */}
       {pendingPayrolls.length > 0 && (
-        <Card className="border-blue-500/20">
+        <Card className="border-amber-500/20 !bg-amber-500/[0.02]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-blue-500" />
+              <Zap className="h-5 w-5 text-amber-500" />
               Ready to Execute
             </CardTitle>
             <CardDescription>
@@ -259,8 +320,8 @@ export default function PayrollPage() {
                   className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/30 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-blue-500" />
+                    <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-amber-500" />
                     </div>
                     <div>
                       <p className="font-medium">
@@ -301,7 +362,7 @@ export default function PayrollPage() {
                         <Button
                           onClick={() => handleExecute(payroll)}
                           disabled={isExecuting}
-                          className="bg-stealth-500 hover:bg-stealth-600"
+                          className="bg-amber-600 hover:bg-amber-700"
                         >
                           <Play className="h-4 w-4 mr-2" />
                           Execute
@@ -319,8 +380,20 @@ export default function PayrollPage() {
       {/* All Payrolls */}
       <Card>
         <CardHeader>
-          <CardTitle>Payroll History</CardTitle>
-          <CardDescription>All payroll runs for your organization</CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <CardTitle>Payroll History</CardTitle>
+              <CardDescription>All payroll runs for your organization</CardDescription>
+            </div>
+            {completedPayrolls.length > 0 && (
+              <div className="text-right">
+                <p className="text-2xl font-bold text-amber-500">
+                  {formatCurrency(completedPayrolls.reduce((sum, p) => sum + p.totalAmount, 0))}
+                </p>
+                <p className="text-xs text-muted-foreground">Total paid</p>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -352,42 +425,86 @@ export default function PayrollPage() {
             </div>
           ) : (
             <div className="space-y-2">
+              {/* Table Header */}
+              <div className="hidden md:grid md:grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wider border-b border-white/5">
+                <div className="col-span-2">Date</div>
+                <div className="col-span-2">Employees</div>
+                <div className="col-span-2 text-right">Salaries</div>
+                <div className="col-span-2 text-right">Fees</div>
+                <div className="col-span-2 text-right">Total</div>
+                <div className="col-span-2 text-right">Status</div>
+              </div>
+
+              {/* Payroll Rows */}
               {payrolls.map((payroll) => {
                 const config = statusConfig[payroll.status];
+                const fees = calculatePayrollFees(payroll.totalAmount);
+                const displayDate = payroll.executedAt || payroll.createdAt;
+
                 return (
                   <div
                     key={payroll.id}
-                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-accent/50 transition-colors"
+                    onClick={() => handleViewDetail(payroll)}
+                    className="grid grid-cols-2 md:grid-cols-12 gap-4 p-4 rounded-lg border hover:bg-accent/30 transition-colors items-center cursor-pointer group"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                        <Users className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {payroll.employeeCount} employee{payroll.employeeCount !== 1 ? "s" : ""}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {payroll.executedAt
-                            ? `Paid ${formatDistanceToNow(new Date(payroll.executedAt))} ago`
-                            : payroll.scheduledDate
-                            ? `Reminder: ${format(new Date(payroll.scheduledDate), "MMM d")}`
-                            : `Created ${formatDistanceToNow(new Date(payroll.createdAt))} ago`}
-                        </p>
-                      </div>
+                    {/* Date */}
+                    <div className="col-span-1 md:col-span-2">
+                      <p className="font-medium text-sm">
+                        {format(new Date(displayDate), "MMM d, yyyy")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(displayDate), "h:mm a")}
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    {/* Employees */}
+                    <div className="hidden md:flex md:col-span-2 items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center">
+                        <Users className="h-3.5 w-3.5 text-amber-500" />
+                      </div>
+                      <span className="text-sm">
+                        {payroll.employeeCount}
+                      </span>
+                    </div>
+
+                    {/* Salaries */}
+                    <div className="hidden md:block md:col-span-2 text-right">
+                      <p className="text-sm font-medium">{formatCurrency(fees.salaries)}</p>
+                    </div>
+
+                    {/* Fees */}
+                    <div className="hidden md:block md:col-span-2 text-right">
+                      <p className="text-sm text-orange-500">
+                        +{formatCurrency(fees.stealthFee + fees.shadowwireFee)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {(fees.stealthFeeRate + fees.shadowwireFeeRate).toFixed(1)}%
+                      </p>
+                    </div>
+
+                    {/* Total */}
+                    <div className="col-span-1 md:col-span-2 text-right">
+                      <p className="font-semibold">{formatCurrency(fees.totalCost)}</p>
+                      <p className="text-xs text-muted-foreground md:hidden">
+                        {payroll.employeeCount} employee{payroll.employeeCount !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+
+                    {/* Status */}
+                    <div className="hidden md:flex md:col-span-2 justify-end">
                       <Badge className={`${config.className} gap-1`}>
                         {config.icon}
                         {config.label}
                       </Badge>
-                      <div className="text-right min-w-[100px]">
-                        <p className="font-semibold">{formatCurrency(payroll.totalAmount)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {getTokenSymbol(payroll.tokenMint)}
-                        </p>
-                      </div>
+                    </div>
+
+                    {/* Mobile Status */}
+                    <div className="md:hidden col-span-2 flex items-center justify-end gap-2">
+                      <Badge className={`${config.className} gap-1`}>
+                        {config.icon}
+                        {config.label}
+                      </Badge>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </div>
                 );
@@ -398,9 +515,9 @@ export default function PayrollPage() {
       </Card>
 
       {/* Privacy Notice */}
-      <Card className="border-stealth-500/20 bg-stealth-500/5">
+      <Card className="border-amber-500/20 !bg-amber-500/[0.02]">
         <CardContent className="flex items-start gap-4 pt-6">
-          <Shield className="h-8 w-8 text-stealth-500 flex-shrink-0" />
+          <Shield className="h-8 w-8 text-amber-500 flex-shrink-0" />
           <div>
             <h3 className="font-semibold mb-1">100% Private Payments</h3>
             <p className="text-sm text-muted-foreground">
@@ -414,15 +531,15 @@ export default function PayrollPage() {
 
       {/* Create Payroll Modal (Native) */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/80"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in-0 duration-200"
             onClick={() => setIsCreateOpen(false)}
           />
 
           {/* Modal */}
-          <div className="relative z-50 w-full max-w-lg mx-4 bg-background border rounded-lg shadow-lg">
+          <div className="relative z-50 w-full max-w-lg max-h-[85vh] overflow-y-auto glass border-white/10 rounded-2xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b">
               <div>
@@ -475,7 +592,7 @@ export default function PayrollPage() {
                               className="h-4 w-4 rounded border-gray-300"
                             />
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-stealth-500/10 flex items-center justify-center text-xs font-medium text-stealth-500">
+                              <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center text-xs font-medium text-amber-500">
                                 {employee.name.charAt(0).toUpperCase()}
                               </div>
                               <span className="text-sm font-medium">{employee.name}</span>
@@ -517,7 +634,7 @@ export default function PayrollPage() {
                       </div>
                       <div className="flex justify-between text-sm font-semibold border-t pt-2">
                         <span>Total cost</span>
-                        <span className="text-stealth-500">{formatCurrency(fees.totalCost)}</span>
+                        <span className="text-amber-500">{formatCurrency(fees.totalCost)}</span>
                       </div>
                     </>
                   );
@@ -544,25 +661,6 @@ export default function PayrollPage() {
                     This is a reminder date. You&apos;ll still need to manually execute.
                   </span>
                 </div>
-              </div>
-
-              {/* Payment Token */}
-              <div className="space-y-2">
-                <Label htmlFor="token-select">Payment Token</Label>
-                <select
-                  id="token-select"
-                  value={newPayroll.tokenMint}
-                  onChange={(e) =>
-                    setNewPayroll({ ...newPayroll, tokenMint: e.target.value })
-                  }
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  {Object.values(TOKENS).map((token) => (
-                    <option key={token.mint} value={token.mint}>
-                      {token.symbol}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               {createError && (
@@ -601,19 +699,19 @@ export default function PayrollPage() {
 
       {/* Execute Confirmation Modal (Native) */}
       {payrollToExecute && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/80"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in-0 duration-200"
             onClick={() => !isExecuting && setPayrollToExecute(null)}
           />
 
           {/* Modal */}
-          <div className="relative z-50 w-full max-w-md mx-4 bg-background border rounded-lg shadow-lg">
+          <div className="relative z-50 w-full max-w-md max-h-[85vh] overflow-y-auto glass border-white/10 rounded-2xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
             {/* Header */}
-            <div className="p-6 border-b">
+            <div className="p-6 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-stealth-500" />
+                <Shield className="h-5 w-5 text-amber-500" />
                 <h2 className="text-lg font-semibold">Execute Private Payroll</h2>
               </div>
             </div>
@@ -655,9 +753,9 @@ export default function PayrollPage() {
               })()}
 
               {isExecuting && (
-                <div className="bg-muted p-4 rounded-lg space-y-2">
+                <div className="bg-muted/50 p-4 rounded-lg space-y-2">
                   <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-stealth-500" />
+                    <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
                     <span className="font-medium">{executionState.message}</span>
                   </div>
                   {executionState.step === "signing" && (
@@ -669,11 +767,11 @@ export default function PayrollPage() {
               )}
 
               {!isExecuting && (
-                <div className="bg-stealth-500/10 p-4 rounded-lg">
+                <div className="bg-amber-500/10 p-4 rounded-lg border border-amber-500/20">
                   <div className="flex items-start gap-2">
-                    <Info className="h-4 w-4 text-stealth-500 mt-0.5" />
+                    <Info className="h-4 w-4 text-amber-500 mt-0.5" />
                     <div className="text-sm">
-                      <p className="font-medium text-stealth-600 dark:text-stealth-400">
+                      <p className="font-medium text-amber-600 dark:text-amber-400">
                         You will sign {payrollToExecute.employeeCount} transaction{payrollToExecute.employeeCount !== 1 ? "s" : ""} at once
                       </p>
                       <p className="text-muted-foreground mt-1">
@@ -686,7 +784,7 @@ export default function PayrollPage() {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-2 p-6 border-t">
+            <div className="flex justify-end gap-2 p-6 border-t border-white/10">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -700,7 +798,7 @@ export default function PayrollPage() {
               <Button
                 onClick={confirmExecute}
                 disabled={isExecuting}
-                className="bg-stealth-500 hover:bg-stealth-600"
+                className="bg-amber-600 hover:bg-amber-700"
               >
                 {isExecuting ? (
                   <>
@@ -715,6 +813,175 @@ export default function PayrollPage() {
                 )}
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payroll Detail Modal */}
+      {(selectedPayroll || isLoadingDetail) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in-0 duration-200"
+            onClick={() => !isLoadingDetail && setSelectedPayroll(null)}
+          />
+
+          {/* Modal */}
+          <div className="relative z-50 w-full max-w-2xl max-h-[85vh] overflow-y-auto glass border-white/10 rounded-2xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
+            {isLoadingDetail ? (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+              </div>
+            ) : selectedPayroll && (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-white/10">
+                  <div>
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                      <USDCIcon size={20} />
+                      Payroll Details
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(selectedPayroll.executedAt || selectedPayroll.createdAt), "MMMM d, yyyy 'at' h:mm a")}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge className={`${statusConfig[selectedPayroll.status].className} gap-1`}>
+                      {statusConfig[selectedPayroll.status].icon}
+                      {statusConfig[selectedPayroll.status].label}
+                    </Badge>
+                    <button
+                      onClick={() => setSelectedPayroll(null)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="p-6 border-b border-white/10">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Employees</p>
+                      <p className="text-2xl font-bold">{selectedPayroll.employeeCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Paid</p>
+                      <p className="text-2xl font-bold text-amber-500">{formatCurrency(selectedPayroll.totalAmount)}</p>
+                    </div>
+                    <div>
+                      {(() => {
+                        const fees = calculatePayrollFees(selectedPayroll.totalAmount);
+                        return (
+                          <>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider">Fees</p>
+                            <p className="text-2xl font-bold text-orange-500">
+                              {formatCurrency(fees.stealthFee + fees.shadowwireFee)}
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Employee Breakdown */}
+                <div className="p-6">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
+                    Payment Breakdown
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedPayroll.payments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+                            <span className="text-sm font-medium text-amber-500">
+                              {payment.employee.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-medium">{payment.employee.name}</p>
+                            <p className="text-xs text-muted-foreground font-mono">
+                              {payment.employee.walletAddress.slice(0, 4)}...{payment.employee.walletAddress.slice(-4)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold">{formatCurrency(payment.amount)}</p>
+                          <Badge
+                            className={`text-xs ${
+                              payment.status === "COMPLETED"
+                                ? "bg-teal-500/10 text-teal-500"
+                                : payment.status === "FAILED"
+                                ? "bg-red-500/10 text-red-500"
+                                : "bg-blue-500/10 text-blue-500"
+                            }`}
+                          >
+                            {payment.status === "COMPLETED" && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                            {payment.status === "FAILED" && <XCircle className="h-3 w-3 mr-1" />}
+                            {payment.status.charAt(0) + payment.status.slice(1).toLowerCase()}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="flex items-center justify-between p-6 border-t border-white/10">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Download className="h-4 w-4 mr-2" />
+                        Export Details
+                        <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => {
+                        const exportData: PayrollDetailExport = {
+                          ...selectedPayroll,
+                          payments: selectedPayroll.payments.map(p => ({
+                            employeeId: p.employeeId,
+                            employeeName: p.employee.name,
+                            walletAddress: p.employee.walletAddress,
+                            amount: p.amount,
+                            status: p.status,
+                          })),
+                        };
+                        downloadPayrollDetailCSV(exportData);
+                      }}>
+                        <FileSpreadsheet className="h-4 w-4 mr-2" />
+                        Export as CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => {
+                        const exportData: PayrollDetailExport = {
+                          ...selectedPayroll,
+                          payments: selectedPayroll.payments.map(p => ({
+                            employeeId: p.employeeId,
+                            employeeName: p.employee.name,
+                            walletAddress: p.employee.walletAddress,
+                            amount: p.amount,
+                            status: p.status,
+                          })),
+                        };
+                        downloadPayrollDetailJSON(exportData);
+                      }}>
+                        <FileJson className="h-4 w-4 mr-2" />
+                        Export as JSON
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button variant="outline" onClick={() => setSelectedPayroll(null)}>
+                    Close
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

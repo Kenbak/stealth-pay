@@ -4,48 +4,96 @@
 
 @layer base {
   :root {
+    /* ═══════════════════════════════════════════════════════════════
+       MARBLE (Light Mode) - Précision suisse, clarté absolue
+       ═══════════════════════════════════════════════════════════════ */
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
+
     --card: 0 0% 100%;
     --card-foreground: 240 10% 3.9%;
+
     --popover: 0 0% 100%;
     --popover-foreground: 240 10% 3.9%;
-    --primary: 142.1 76.2% 36.3%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 142.1 76.2% 36.3%;
+
+    --primary: 38 92% 50%;
+    --primary-foreground: 240 10% 3.9%;
+
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 3.9%;
+
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 10% 3.9%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 175 84% 32%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 27 96% 61%;
+    --warning-foreground: 240 10% 3.9%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 38 92% 50%;
+
     --radius: 0.75rem;
+    --radius-lg: 1rem;
+
+    /* Amber accent scale */
+    --amber-50: 48 100% 96%;
+    --amber-100: 48 96% 89%;
+    --amber-200: 48 97% 77%;
+    --amber-300: 46 97% 65%;
+    --amber-400: 43 96% 56%;
+    --amber-500: 38 92% 50%;
+    --amber-600: 32 95% 44%;
+    --amber-700: 26 90% 37%;
+    --amber-800: 23 83% 31%;
+    --amber-900: 22 78% 26%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
+    /* ═══════════════════════════════════════════════════════════════
+       OBSIDIAN (Dark Mode) - L'élégance du vide, luxe discret
+       ═══════════════════════════════════════════════════════════════ */
+    --background: 0 0% 4%;
     --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
+
+    --card: 0 0% 7%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+
+    --popover: 0 0% 7%;
     --popover-foreground: 0 0% 98%;
-    --primary: 142.1 70.6% 45.3%;
-    --primary-foreground: 144.9 80.4% 10%;
-    --secondary: 240 3.7% 15.9%;
+
+    --primary: 38 92% 50%;
+    --primary-foreground: 240 10% 3.9%;
+
+    --secondary: 0 0% 12%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
+
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 0 0% 12%;
     --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 142.1 76.2% 36.3%;
+
+    --destructive: 0 91% 71%;
+    --destructive-foreground: 240 10% 3.9%;
+
+    --success: 172 66% 50%;
+    --success-foreground: 240 10% 3.9%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 240 10% 3.9%;
+
+    --border: 0 0% 14%;
+    --input: 0 0% 14%;
+    --ring: 38 92% 50%;
   }
 }
 
@@ -55,11 +103,177 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
   }
 }
 
-/* Custom scrollbar */
+/* ═══════════════════════════════════════════════════════════════
+   GLASSMORPHISM & DEPTH
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  /* Glass card - the signature look */
+  .glass {
+    @apply bg-white/70 dark:bg-white/5 backdrop-blur-xl;
+    @apply border border-white/20 dark:border-white/10;
+  }
+
+  .glass-card {
+    @apply bg-white/80 dark:bg-white/[0.03] backdrop-blur-2xl;
+    @apply border border-black/[0.08] dark:border-white/[0.08];
+    @apply shadow-[0_8px_32px_rgba(0,0,0,0.04)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)];
+  }
+
+  .glass-strong {
+    @apply bg-white/90 dark:bg-black/40 backdrop-blur-2xl;
+    @apply border border-black/5 dark:border-white/10;
+  }
+
+  /* Glow border on hover */
+  .glow-border {
+    @apply relative;
+  }
+
+  .glow-border::before {
+    content: '';
+    @apply absolute -inset-px rounded-[inherit] opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, hsl(38 92% 50% / 0.4), hsl(38 92% 50% / 0.1), transparent);
+  }
+
+  .glow-border:hover::before {
+    @apply opacity-100;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GRADIENT MESH BACKGROUNDS (like Stripe)
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .mesh-gradient {
+    background:
+      radial-gradient(at 40% 20%, hsla(38, 92%, 50%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsla(189, 100%, 50%, 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, hsla(355, 100%, 65%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, hsla(269, 100%, 65%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(38, 92%, 50%, 0.1) 0px, transparent 50%);
+  }
+
+  .dark .mesh-gradient {
+    background:
+      radial-gradient(at 40% 20%, hsla(38, 92%, 50%, 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsla(189, 100%, 50%, 0.05) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, hsla(355, 100%, 65%, 0.04) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, hsla(269, 100%, 65%, 0.04) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsla(38, 92%, 50%, 0.05) 0px, transparent 50%);
+  }
+
+  .mesh-gradient-subtle {
+    background:
+      radial-gradient(at 0% 0%, hsla(38, 92%, 50%, 0.08) 0px, transparent 40%),
+      radial-gradient(at 100% 100%, hsla(38, 92%, 50%, 0.05) 0px, transparent 40%);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATED GRADIENTS & ORBS
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .orb {
+    @apply absolute rounded-full blur-3xl;
+    animation: float 20s ease-in-out infinite;
+  }
+
+  .orb-amber {
+    @apply bg-amber-500/20 dark:bg-amber-500/10;
+  }
+
+  .orb-cyan {
+    @apply bg-cyan-500/15 dark:bg-cyan-500/5;
+  }
+
+  .orb-violet {
+    @apply bg-violet-500/15 dark:bg-violet-500/5;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(10%, 10%) scale(1.05); }
+    50% { transform: translate(-5%, 20%) scale(0.95); }
+    75% { transform: translate(-10%, 10%) scale(1.02); }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BUTTON SHINE EFFECT
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .btn-shine {
+    @apply relative overflow-hidden;
+  }
+
+  .btn-shine::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(255, 255, 255, 0.2) 45%,
+      rgba(255, 255, 255, 0.3) 50%,
+      rgba(255, 255, 255, 0.2) 55%,
+      transparent 60%
+    );
+    transform: translateX(-100%);
+    transition: transform 0.6s ease;
+  }
+
+  .btn-shine:hover::after {
+    transform: translateX(100%);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD GLOW EFFECTS (subtle)
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .card-glow {
+    @apply relative;
+    transition: all 0.3s ease;
+  }
+
+  .card-glow:hover {
+    @apply border-amber-500/20;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.08),
+                0 0 0 1px hsl(38 92% 50% / 0.08);
+  }
+
+  .dark .card-glow:hover {
+    box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.3),
+                0 0 0 1px hsl(38 92% 50% / 0.1);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NOISE TEXTURE OVERLAY
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .noise {
+    @apply relative;
+  }
+
+  .noise::after {
+    content: '';
+    @apply absolute inset-0 pointer-events-none opacity-[0.015] dark:opacity-[0.03];
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════════════════════════ */
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
@@ -75,42 +289,128 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
+    @apply bg-black/10 dark:bg-white/10 rounded-full;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
+    @apply bg-black/20 dark:bg-white/20;
   }
 }
 
-/* Gradient text */
+/* ═══════════════════════════════════════════════════════════════
+   GRADIENT TEXT
+   ═══════════════════════════════════════════════════════════════ */
 @layer utilities {
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-stealth-400 to-stealth-600;
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(38 92% 55%), hsl(32 95% 50%));
+  }
+
+  .text-gradient-vibrant {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(38 100% 60%), hsl(25 100% 55%), hsl(38 100% 55%));
   }
 }
 
-/* Glass effect */
-@layer utilities {
-  .glass {
-    @apply bg-background/80 backdrop-blur-xl border border-border/50;
-  }
-}
-
-/* Smooth animations */
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════ */
 @layer utilities {
   .animate-in {
-    animation: animate-in 0.2s ease-out;
+    animation: animate-in 0.4s ease-out;
   }
 
   @keyframes animate-in {
     from {
       opacity: 0;
-      transform: translateY(4px);
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* Stagger children */
+  .stagger > * {
+    animation: animate-in 0.4s ease-out backwards;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .stagger > *:nth-child(5) { animation-delay: 240ms; }
+  .stagger > *:nth-child(6) { animation-delay: 300ms; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TYPOGRAPHY
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .display {
+    @apply font-display text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1];
+  }
+
+  .heading-1 {
+    @apply font-display text-3xl font-bold tracking-tight;
+  }
+
+  .heading-2 {
+    @apply font-display text-2xl font-semibold tracking-tight;
+  }
+
+  .heading-3 {
+    @apply font-display text-xl font-semibold;
+  }
+
+  .body-large {
+    @apply text-lg leading-relaxed;
+  }
+
+  .caption {
+    @apply text-xs font-medium tracking-wide;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INTERACTIVE STATES
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .press-effect {
+    @apply transition-transform active:scale-[0.98];
+  }
+
+  .hover-lift {
+    @apply transition-all duration-300 hover:-translate-y-1;
+  }
+
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOW SHADOWS
+   ═══════════════════════════════════════════════════════════════ */
+@layer utilities {
+  .glow-amber {
+    box-shadow: 0 0 60px -15px hsl(38 92% 50% / 0.4);
+  }
+
+  .glow-amber-sm {
+    box-shadow: 0 0 30px -10px hsl(38 92% 50% / 0.3);
+  }
+
+  .glow-amber-lg {
+    box-shadow: 0 0 100px -20px hsl(38 92% 50% / 0.5);
   }
 }

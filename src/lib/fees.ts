@@ -26,6 +26,12 @@ export const FEES = {
     STEALTH_RATE: 0.003,    // 0.3% StealthPay fee on payroll
     SHADOWWIRE_RATE: 0.01,  // 1% ShadowWire relayer fee
   } as const,
+
+  // Invoice fees (client pays extra on top of invoice amount)
+  INVOICE: {
+    STEALTH_RATE: 0.01,     // 1% StealthPay fee
+    SHADOWWIRE_RATE: 0.01,  // 1% ShadowWire relayer fee
+  } as const,
 };
 
 export type FeeTier = keyof typeof FEES.RATES;
@@ -81,6 +87,34 @@ export function calculatePayrollFees(
     shadowwireFee,
     shadowwireFeeRate: FEES.PAYROLL.SHADOWWIRE_RATE * 100,
     totalCost: Math.round((totalSalaries + stealthFee + shadowwireFee) * 100) / 100,
+  };
+}
+
+/**
+ * Calculate invoice fees (client pays invoice + fees)
+ */
+export function calculateInvoiceFees(
+  invoiceAmount: number
+): {
+  invoiceAmount: number;
+  stealthFee: number;
+  stealthFeeRate: number;
+  shadowwireFee: number;
+  shadowwireFeeRate: number;
+  totalClientPays: number;
+  freelancerReceives: number;
+} {
+  const stealthFee = Math.round(invoiceAmount * FEES.INVOICE.STEALTH_RATE * 100) / 100;
+  const shadowwireFee = Math.round(invoiceAmount * FEES.INVOICE.SHADOWWIRE_RATE * 100) / 100;
+
+  return {
+    invoiceAmount,
+    stealthFee,
+    stealthFeeRate: FEES.INVOICE.STEALTH_RATE * 100,
+    shadowwireFee,
+    shadowwireFeeRate: FEES.INVOICE.SHADOWWIRE_RATE * 100,
+    totalClientPays: Math.round((invoiceAmount + stealthFee + shadowwireFee) * 100) / 100,
+    freelancerReceives: invoiceAmount,
   };
 }
 

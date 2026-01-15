@@ -22,10 +22,10 @@ export function NetworkBadge() {
   return (
     <Badge
       variant="outline"
-      className={`gap-1.5 ${
+      className={`gap-1.5 rounded-lg ${
         mainnet
-          ? "border-green-500/50 bg-green-500/10 text-green-600 dark:text-green-400"
-          : "border-yellow-500/50 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+          ? "border-teal-500/50 bg-teal-500/10 text-teal-600 dark:text-teal-400"
+          : "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
       }`}
     >
       {mainnet ? (
@@ -55,7 +55,7 @@ export function HeliusBadge() {
   return (
     <Badge
       variant="outline"
-      className="gap-1.5 border-orange-500/50 bg-orange-500/10 text-orange-600 dark:text-orange-400"
+      className="gap-1.5 rounded-lg border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
       title="Powered by Helius RPC - Enhanced performance & APIs"
     >
       <Zap className="h-3 w-3" />
@@ -72,11 +72,13 @@ export function DevnetWarning() {
   if (isMainnet()) return null;
 
   return (
-    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 text-sm text-yellow-700 dark:text-yellow-400">
-      <div className="flex items-center gap-2">
-        <TestTube2 className="h-4 w-4 flex-shrink-0" />
+    <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-700 dark:text-amber-400">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+          <TestTube2 className="h-4 w-4" />
+        </div>
         <div>
-          <strong>Devnet Mode</strong> - Using test tokens. No real funds at risk.
+          <strong className="font-medium">Devnet Mode</strong> - Using test tokens. No real funds at risk.
           <br />
           <span className="text-xs opacity-80">
             Get test SOL from{" "}
@@ -103,11 +105,13 @@ export function MainnetWarning() {
   if (!isMainnet()) return null;
 
   return (
-    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-sm text-red-700 dark:text-red-400">
-      <div className="flex items-center gap-2">
-        <Globe className="h-4 w-4 flex-shrink-0" />
+    <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-sm text-red-700 dark:text-red-400">
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
+          <Globe className="h-4 w-4" />
+        </div>
         <div>
-          <strong>Mainnet Mode</strong> - Using real funds. Proceed with caution.
+          <strong className="font-medium">Mainnet Mode</strong> - Using real funds. Proceed with caution.
         </div>
       </div>
     </div>

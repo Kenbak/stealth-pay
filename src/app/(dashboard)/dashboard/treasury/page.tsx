@@ -39,6 +39,7 @@ import { formatCurrency } from "@/lib/utils";
 import { calculateFee } from "@/lib/fees";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { useToast } from "@/components/ui/use-toast";
+import { SolanaIcon, USDCIcon } from "@/components/icons/token-icons";
 
 // Get network from env
 const NETWORK = process.env.NEXT_PUBLIC_SOLANA_NETWORK || "devnet";
@@ -268,13 +269,19 @@ export default function TreasuryPage() {
             {isLoadingBalance ? (
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             ) : solBalance !== null ? (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground text-sm">◎ SOL</span>
+                  <div className="flex items-center gap-2">
+                    <SolanaIcon size={18} />
+                    <span className="text-muted-foreground text-sm">SOL</span>
+                  </div>
                   <span className="font-bold">{solBalance.toFixed(4)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground text-sm">💵 USDC</span>
+                  <div className="flex items-center gap-2">
+                    <USDCIcon size={18} />
+                    <span className="text-muted-foreground text-sm">USDC</span>
+                  </div>
                   <span className="font-bold">{(usdcBalance || 0).toFixed(2)}</span>
                 </div>
               </div>
@@ -284,19 +291,19 @@ export default function TreasuryPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-stealth-500/30 bg-stealth-500/5">
+        <Card className="border-amber-500/30 !bg-amber-500/[0.02]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-stealth-600 dark:text-stealth-400">
+            <CardTitle className="text-sm font-medium text-amber-600 dark:text-amber-400">
               Treasury Balance
             </CardTitle>
-            <Shield className="h-4 w-4 text-stealth-500" />
+            <Shield className="h-4 w-4 text-amber-500" />
           </CardHeader>
           <CardContent>
             {isLoadingBalance ? (
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             ) : (
               <>
-                <div className="text-2xl font-bold text-stealth-600 dark:text-stealth-400">
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                   {treasuryBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -325,8 +332,10 @@ export default function TreasuryPage() {
         </Card>
       </div>
 
+      {/* Deposit / Withdraw + History Grid */}
+      <div className="grid gap-6 lg:grid-cols-2">
       {/* Deposit / Withdraw Tabs */}
-      <Card className="max-w-2xl">
+      <Card>
         <CardHeader className="pb-4">
           {/* Tab Navigation */}
           <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
@@ -359,11 +368,11 @@ export default function TreasuryPage() {
           {activeTab === "deposit" ? (
             <>
               {/* How it works */}
-              <div className="bg-stealth-500/5 border border-stealth-500/20 rounded-lg p-4">
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-stealth-500 mt-0.5" />
+                  <Shield className="h-5 w-5 text-amber-500 mt-0.5" />
                   <div>
-                    <p className="font-medium text-stealth-600 dark:text-stealth-400">
+                    <p className="font-medium text-amber-600 dark:text-amber-400">
                       How Private Deposits Work
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
@@ -378,23 +387,25 @@ export default function TreasuryPage() {
               <div className="flex gap-2 p-1 bg-muted rounded-lg">
                 <button
                   onClick={() => setDepositMethod("usdc")}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                     depositMethod === "usdc"
                       ? "bg-background shadow text-foreground"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  💵 USDC
+                  <USDCIcon size={16} />
+                  USDC
                 </button>
                 <button
                   onClick={() => setDepositMethod("sol")}
-                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                  className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                     depositMethod === "sol"
                       ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  ◎ SOL → USDC
+                  <SolanaIcon size={16} />
+                  SOL → USDC
                 </button>
               </div>
 
@@ -427,7 +438,7 @@ export default function TreasuryPage() {
                           : (usdcBalance || 0);
                         setDepositAmount(maxAmount.toString());
                       }}
-                      className="text-xs text-stealth-500 hover:text-stealth-600 font-medium"
+                      className="text-xs text-amber-500 hover:text-amber-600 font-medium"
                     >
                       MAX
                     </button>
@@ -574,7 +585,7 @@ export default function TreasuryPage() {
                 {/* Net Amount */}
                 <div className="flex justify-between items-baseline">
                   <span className="font-medium">Available for payroll</span>
-                  <span className="text-xl font-bold text-stealth-500">
+                  <span className="text-xl font-bold text-amber-500">
                     {netAmount.toFixed(2)} USDC
                   </span>
                 </div>
@@ -583,7 +594,7 @@ export default function TreasuryPage() {
                 {totalSalary > 0 && (
                   <div className={`flex items-center gap-2 p-2 rounded-md text-sm ${
                     coversPayroll
-                      ? "bg-stealth-500/10 text-stealth-600 dark:text-stealth-400"
+                      ? "bg-teal-500/10 text-teal-600 dark:text-teal-400"
                       : "bg-orange-500/10 text-orange-600 dark:text-orange-400"
                   }`}>
                     {coversPayroll ? (
@@ -616,8 +627,8 @@ export default function TreasuryPage() {
               <ArrowRight className="h-5 w-5 text-muted-foreground/50" />
 
               <div className="flex flex-col items-center">
-                <div className="w-10 h-10 rounded-full bg-stealth-500/10 flex items-center justify-center">
-                  <Shield className="h-5 w-5 text-stealth-500" />
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-amber-500" />
                 </div>
                 <span className="mt-1">Privacy Pool</span>
               </div>
@@ -674,15 +685,15 @@ export default function TreasuryPage() {
             /* WITHDRAW TAB */
             <>
               {/* Available Balance */}
-              <div className="bg-stealth-500/5 border border-stealth-500/20 rounded-lg p-4">
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-stealth-500" />
-                    <span className="font-medium text-stealth-600 dark:text-stealth-400">
+                    <Shield className="h-5 w-5 text-amber-500" />
+                    <span className="font-medium text-amber-600 dark:text-amber-400">
                       Available in Treasury
                     </span>
                   </div>
-                  <span className="text-xl font-bold text-stealth-600 dark:text-stealth-400">
+                  <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
                     {treasuryBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC
                   </span>
                 </div>
@@ -706,7 +717,7 @@ export default function TreasuryPage() {
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                     <button
                       onClick={() => setWithdrawAmount(treasuryBalance.toString())}
-                      className="text-xs text-stealth-500 hover:text-stealth-600 font-medium"
+                      className="text-xs text-amber-500 hover:text-amber-600 font-medium"
                     >
                       MAX
                     </button>
@@ -730,12 +741,12 @@ export default function TreasuryPage() {
 
               {/* Withdraw Flow Visualization */}
               <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                <div className="flex flex-col items-center">
-                  <div className="w-10 h-10 rounded-full bg-stealth-500/10 flex items-center justify-center">
-                    <Shield className="h-5 w-5 text-stealth-500" />
-                  </div>
-                  <span className="mt-1">Treasury</span>
+              <div className="flex flex-col items-center">
+                <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
+                  <Shield className="h-5 w-5 text-amber-500" />
                 </div>
+                <span className="mt-1">Treasury</span>
+              </div>
 
                 <ArrowRight className="h-5 w-5 text-muted-foreground/50" />
 
@@ -783,16 +794,16 @@ export default function TreasuryPage() {
         </CardContent>
       </Card>
 
-      {/* Deposit History */}
+      {/* History */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                Deposit History
+                History
               </CardTitle>
-              <CardDescription>Recent deposits to privacy pool</CardDescription>
+              <CardDescription>Recent transactions</CardDescription>
             </div>
             <Button
               variant="ghost"
@@ -843,7 +854,7 @@ export default function TreasuryPage() {
               if (isLoadingHistory) {
                 return (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-stealth-500" />
+                    <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
                     <span className="ml-2 text-muted-foreground">Loading deposits...</span>
                   </div>
                 );
@@ -881,10 +892,10 @@ export default function TreasuryPage() {
                     return (
                       <div
                         key={tx.signature}
-                        className="flex items-center justify-between p-3 rounded-lg border border-stealth-500/20 hover:bg-stealth-500/5 transition-colors"
+                        className="flex items-center justify-between p-3 rounded-lg border border-amber-500/20 hover:bg-amber-500/5 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center bg-stealth-500/10 text-stealth-500">
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-500/10 text-amber-500">
                             <Shield className="h-4 w-4" />
                           </div>
                           <div>
@@ -902,7 +913,7 @@ export default function TreasuryPage() {
 
                         <div className="flex items-center gap-4">
                           <div className="text-right">
-                            <p className="font-medium text-stealth-500">
+                            <p className="font-medium text-amber-500">
                               {depositAmount.toFixed(2)} USDC
                             </p>
                             <p className="text-xs text-muted-foreground">
@@ -913,7 +924,7 @@ export default function TreasuryPage() {
                             href={`https://solscan.io/tx/${tx.signature}${!isMainnet ? "?cluster=devnet" : ""}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-stealth-500 hover:text-stealth-600"
+                            className="text-amber-500 hover:text-amber-600"
                           >
                             <ExternalLink className="h-4 w-4" />
                           </a>
@@ -924,8 +935,8 @@ export default function TreasuryPage() {
 
                   {/* Helius attribution */}
                   <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
-                    <Zap className="h-3 w-3 text-orange-500" />
-                    Powered by Helius Enhanced APIs
+                    <Zap className="h-3 w-3 text-amber-500" />
+                    Powered by Helius
                   </div>
                 </div>
               );
@@ -933,21 +944,22 @@ export default function TreasuryPage() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Devnet Notice - only show on devnet */}
       {!isMainnet && (
-        <Card className="border-dashed border-orange-500/30 bg-orange-500/5">
+        <Card className="border-dashed border-amber-500/30 !bg-amber-500/[0.02]">
           <CardContent className="py-4">
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <Info className="h-5 w-5 flex-shrink-0 text-orange-500" />
               <div>
                 <p>
-                  <strong className="text-orange-600 dark:text-orange-400">Devnet Mode:</strong> Get free test tokens from{" "}
+                  <strong className="text-amber-600 dark:text-amber-400">Devnet Mode:</strong> Get free test tokens from{" "}
                   <a
                     href="https://spl-token-faucet.com/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-stealth-500 hover:underline"
+                    className="text-amber-500 hover:underline"
                   >
                     SPL Token Faucet
                   </a>
@@ -956,7 +968,7 @@ export default function TreasuryPage() {
                     href="https://faucet.solana.com/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-stealth-500 hover:underline"
+                    className="text-amber-500 hover:underline"
                   >
                     Solana Faucet
                   </a>

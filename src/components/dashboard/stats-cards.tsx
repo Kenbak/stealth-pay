@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Wallet, Users, Clock, Vault, AlertCircle, AlertTriangle, CalendarPlus } from "lucide-react";
-import { formatCurrency, formatSol, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { useOrganization } from "@/hooks/use-organization";
 import { useEmployees } from "@/hooks/use-employees";
 import { useTreasury } from "@/hooks/use-treasury";
@@ -42,8 +42,8 @@ export function StatsCards() {
         value: "—",
         subtitle: "Add employees first",
         icon: Clock,
-        color: "text-muted-foreground",
-        bgColor: "bg-muted/50",
+        iconBg: "bg-muted",
+        iconColor: "text-muted-foreground",
       };
     }
 
@@ -52,8 +52,8 @@ export function StatsCards() {
         value: "Not set",
         subtitle: "Schedule a payroll →",
         icon: CalendarPlus,
-        color: "text-orange-500",
-        bgColor: "bg-orange-500/10",
+        iconBg: "bg-gradient-to-br from-amber-500/10 to-amber-500/5",
+        iconColor: "text-amber-500",
         href: "/dashboard/payroll",
       };
     }
@@ -66,8 +66,8 @@ export function StatsCards() {
         ? `in ${daysUntilPayroll} days`
         : "Execute now",
       icon: Clock,
-      color: "text-orange-500",
-      bgColor: "bg-orange-500/10",
+      iconBg: "bg-gradient-to-br from-amber-500/10 to-amber-500/5",
+      iconColor: "text-amber-500",
       href: "/dashboard/payroll",
     };
   };
@@ -76,56 +76,58 @@ export function StatsCards() {
 
   const stats = [
     {
-      name: "Monthly Payroll",
-      value: isLoading ? null : formatCurrency(totalSalary),
-      subtitle: isLoading ? null : `${activeEmployees.length} active employees`,
-      icon: Wallet,
-      color: "text-stealth-500",
-      bgColor: "bg-stealth-500/10",
+      name: "Treasury Balance",
+      value: isLoading ? null : treasuryDisplay,
+      subtitle: isLoading
+        ? null
+        : needsFunding
+          ? "Low funds"
+          : "Ready for payroll",
+      icon: needsFunding ? AlertTriangle : Vault,
+      iconBg: needsFunding
+        ? "bg-gradient-to-br from-orange-500/10 to-orange-500/5"
+        : "bg-gradient-to-br from-amber-500/10 to-amber-500/5",
+      iconColor: needsFunding ? "text-orange-500" : "text-amber-500",
+      valueColor: needsFunding ? "text-orange-500" : "text-amber-500",
+      href: "/dashboard/treasury",
+      highlight: true,
     },
     {
       name: "Active Employees",
       value: isLoading ? null : activeEmployees.length.toString(),
-      subtitle: isLoading
-        ? null
-        : organization
-        ? `in ${organization.name}`
-        : "No organization",
+      subtitle: isLoading ? null : "team members",
       icon: Users,
-      color: "text-blue-500",
-      bgColor: "bg-blue-500/10",
+      iconBg: "bg-gradient-to-br from-teal-500/10 to-teal-500/5",
+      iconColor: "text-teal-500",
       href: "/dashboard/employees",
+    },
+    {
+      name: "Monthly Payroll",
+      value: isLoading ? null : formatCurrency(totalSalary),
+      subtitle: isLoading ? null : "total salaries",
+      icon: Wallet,
+      iconBg: "bg-gradient-to-br from-violet-500/10 to-violet-500/5",
+      iconColor: "text-violet-500",
     },
     {
       name: "Next Payroll",
       value: isLoading ? null : nextPayrollDisplay.value,
       subtitle: isLoading ? null : nextPayrollDisplay.subtitle,
       icon: nextPayrollDisplay.icon,
-      color: nextPayrollDisplay.color,
-      bgColor: nextPayrollDisplay.bgColor,
+      iconBg: nextPayrollDisplay.iconBg,
+      iconColor: nextPayrollDisplay.iconColor,
       href: nextPayrollDisplay.href,
-    },
-    {
-      name: "Treasury",
-      value: isLoading ? null : treasuryDisplay,
-      subtitle: isLoading
-        ? null
-        : needsFunding
-          ? "⚠️ Low funds - add more"
-          : "Ready for payroll",
-      icon: needsFunding ? AlertTriangle : Vault,
-      color: needsFunding ? "text-yellow-500" : "text-purple-500",
-      bgColor: needsFunding ? "bg-yellow-500/10" : "bg-purple-500/10",
-      href: "/dashboard/treasury",
     },
   ];
 
   // Show setup prompt if no organization
   if (!isLoading && !organization) {
     return (
-      <Card className="border-dashed">
+      <Card className="border-dashed border-2">
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <AlertCircle className="h-8 w-8 text-muted-foreground" />
+          </div>
           <h3 className="text-lg font-semibold mb-2">No Organization Yet</h3>
           <p className="text-muted-foreground text-center mb-4 max-w-md">
             Create your organization to start managing private payroll for your
@@ -137,19 +139,23 @@ export function StatsCards() {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 stagger">
       {stats.map((stat) => {
         const cardContent = (
-          <Card className={stat.href ? "hover:border-stealth-500/50 transition-colors cursor-pointer" : ""}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <Card className={`group relative overflow-hidden ${stat.href ? "cursor-pointer" : ""} ${stat.highlight ? "border-amber-500/20" : ""}`}>
+            {/* Subtle highlight gradient for primary card */}
+            {stat.highlight && (
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/[0.03] to-transparent pointer-events-none" />
+            )}
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.name}
               </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <div className={`p-2.5 rounded-xl ${stat.iconBg} transition-all group-hover:scale-110`}>
+                <stat.icon className={`h-4 w-4 ${stat.iconColor}`} />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="relative">
               {isLoading ? (
                 <>
                   <Skeleton className="h-8 w-24 mb-1" />
@@ -157,8 +163,10 @@ export function StatsCards() {
                 </>
               ) : (
                 <>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <p className="text-xs text-muted-foreground">{stat.subtitle}</p>
+                  <div className={`text-2xl font-display font-bold ${stat.valueColor || ""}`}>
+                    {stat.value}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
                 </>
               )}
             </CardContent>

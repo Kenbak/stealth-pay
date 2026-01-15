@@ -25,6 +25,7 @@ model Organization {
   employees            Employee[]
   payrolls             Payroll[]
   treasuryTransactions TreasuryTransaction[]
+  invoices             Invoice[]
 
   @@map("organizations")
 }
@@ -164,6 +165,53 @@ enum TreasuryTxType {
   DEPOSIT
   WITHDRAW
   PAYROLL_OUT
+  INVOICE_IN
+}
+
+// ============================================
+// INVOICES (For freelancers to receive payments)
+// ============================================
+
+model Invoice {
+  id             String   @id @default(cuid())
+  publicId       String   @unique // For public URL: inv_abc123
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Invoice details
+  amount      Decimal  @db.Decimal(18, 6)
+  tokenMint   String   // USDC mint address
+  description String
+
+  // Optional fields
+  dueDate     DateTime?
+  clientEmail String?
+
+  // Status
+  status      InvoiceStatus @default(PENDING)
+
+  // Payment info (filled when paid)
+  payerWallet String?
+  txSignature String?
+  paidAt      DateTime?
+
+  // Fees
+  platformFee Decimal? @db.Decimal(18, 6)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
 }
 
 // ============================================

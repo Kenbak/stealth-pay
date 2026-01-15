@@ -6,6 +6,18 @@ import { useToast } from "@/components/ui/use-toast";
 
 export type PayrollStatus = "PENDING" | "SCHEDULED" | "PROCESSING" | "COMPLETED" | "FAILED";
 
+export interface PayrollPayment {
+  id: string;
+  employeeId: string;
+  amount: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+  employee: {
+    id: string;
+    name: string;
+    walletAddress: string;
+  };
+}
+
 export interface Payroll {
   id: string;
   scheduledDate: string | null;
@@ -15,6 +27,10 @@ export interface Payroll {
   employeeCount: number;
   executedAt: string | null;
   createdAt: string;
+}
+
+export interface PayrollDetail extends Payroll {
+  payments: PayrollPayment[];
 }
 
 export interface CreatePayrollInput {
@@ -171,6 +187,24 @@ export function usePayrolls() {
     },
   });
 
+  // Get payroll detail
+  const getPayrollDetail = async (payrollId: string): Promise<PayrollDetail | null> => {
+    try {
+      const res = await fetch(`/api/payrolls/${payrollId}`, {
+        headers: getAuthHeaders(),
+      });
+
+      if (!res.ok) {
+        return null;
+      }
+
+      const data = await res.json();
+      return data.payroll as PayrollDetail;
+    } catch {
+      return null;
+    }
+  };
+
   return {
     payrolls: query.data || [],
     nextPayroll,
@@ -188,5 +222,6 @@ export function usePayrolls() {
     cancelPayroll: cancelMutation.mutate,
     isCancelling: cancelMutation.isPending,
     refetch: query.refetch,
+    getPayrollDetail,
   };
 }

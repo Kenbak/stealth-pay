@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { logAudit, createAuditContext } from "@/lib/audit-log";
+import {
+  EncryptionService,
+  getMasterKey,
+  decryptEmployeeData,
+} from "@/lib/encryption";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
 
 /**
- * GET /api/payrolls/[id] - Get a specific payroll
+ * GET /api/payrolls/[id] - Get a specific payroll with decrypted payment details
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -18,10 +23,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get organization with encryption key
+    const organization = await prisma.organization.findUnique({
+      where: { adminWallet: user.wallet },
+      select: { id: true, encryptionKey: true },
+    });
+
+    if (!organization) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
     const payroll = await prisma.payroll.findFirst({
       where: {
         id,
-        organization: { adminWallet: user.wallet },
+        organizationId: organization.id,
       },
       include: {
         payments: {
@@ -36,7 +51,53 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Payroll not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ payroll });
+    // Decrypt org key
+    const masterKey = getMasterKey();
+    const orgKey = EncryptionService.decryptOrgKey(
+      organization.encryptionKey,
+      masterKey
+    );
+
+    // Decrypt payment and employee data
+    const decryptedPayments = payroll.payments.map((payment) => {
+      const decryptedEmployee = decryptEmployeeData(
+        {
+          nameEncrypted: payment.employee.nameEncrypted,
+          salaryEncrypted: payment.employee.salaryEncrypted,
+          walletAddressEncrypted: payment.employee.walletAddressEncrypted,
+        },
+        orgKey
+      );
+
+      // Decrypt amount
+      const amount = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
+
+      return {
+        id: payment.id,
+        employeeId: payment.employeeId,
+        amount,
+        status: payment.status,
+        employee: {
+          id: payment.employee.id,
+          name: decryptedEmployee.name,
+          walletAddress: decryptedEmployee.walletAddress,
+        },
+      };
+    });
+
+    return NextResponse.json({
+      payroll: {
+        id: payroll.id,
+        scheduledDate: payroll.scheduledDate,
+        totalAmount: Number(payroll.totalAmount),
+        tokenMint: payroll.tokenMint,
+        status: payroll.status,
+        executedAt: payroll.executedAt,
+        createdAt: payroll.createdAt,
+        employeeCount: payroll.payments.length,
+        payments: decryptedPayments,
+      },
+    });
   } catch (error) {
     console.error("Get payroll error:", error);
     return NextResponse.json(

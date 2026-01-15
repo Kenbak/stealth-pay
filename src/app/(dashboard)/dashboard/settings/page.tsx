@@ -137,7 +137,7 @@ export default function SettingsPage() {
                   href={`https://solscan.io/account/${publicKey.toBase58()}${!isMainnet ? "?cluster=devnet" : ""}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-stealth-500 hover:underline"
+                  className="inline-flex items-center gap-1 text-sm text-amber-500 hover:underline"
                 >
                   View on Solscan
                   <ExternalLink className="h-3 w-3" />
@@ -160,12 +160,12 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-muted/50 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-stealth-500">{activeEmployees}</p>
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-amber-500">{activeEmployees}</p>
                 <p className="text-sm text-muted-foreground">Active Employees</p>
               </div>
-              <div className="bg-muted/50 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-stealth-500">{completedPayrolls}</p>
+              <div className="bg-teal-500/5 border border-teal-500/10 rounded-lg p-4 text-center">
+                <p className="text-3xl font-bold text-teal-500">{completedPayrolls}</p>
                 <p className="text-sm text-muted-foreground">Payrolls Completed</p>
               </div>
             </div>
@@ -182,31 +182,31 @@ export default function SettingsPage() {
             <CardDescription>Your data protection status</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-green-500/10 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-teal-500/10 rounded-lg border border-teal-500/20">
               <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-green-500" />
+                <Shield className="h-4 w-4 text-teal-500" />
                 <span className="text-sm font-medium">Data Encryption</span>
               </div>
-              <Badge variant="outline" className="border-green-500/50 text-green-500">
+              <Badge variant="outline" className="border-teal-500/50 text-teal-500">
                 AES-256-GCM
               </Badge>
             </div>
-            <div className="flex items-center justify-between p-3 bg-stealth-500/10 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
               <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-stealth-500" />
+                <Shield className="h-4 w-4 text-amber-500" />
                 <span className="text-sm font-medium">Private Payments</span>
               </div>
-              <Badge variant="outline" className="border-stealth-500/50 text-stealth-500">
+              <Badge variant="outline" className="border-amber-500/50 text-amber-500">
                 ShadowWire ZK
               </Badge>
             </div>
             {isHeliusConfigured() && (
-              <div className="flex items-center justify-between p-3 bg-orange-500/10 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
                 <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-orange-500" />
+                  <Zap className="h-4 w-4 text-amber-500" />
                   <span className="text-sm font-medium">Enhanced RPC</span>
                 </div>
-                <Badge variant="outline" className="border-orange-500/50 text-orange-500">
+                <Badge variant="outline" className="border-amber-500/50 text-amber-500">
                   Helius
                 </Badge>
               </div>
@@ -232,7 +232,7 @@ export default function SettingsPage() {
                 zero-knowledge proofs on Solana. Salaries stay confidential on-chain.
               </p>
               <p className="text-xs text-muted-foreground">
-                Built for Privacy Hack 2026 • Powered by Radr ShadowWire
+                Powered by Radr ShadowWire
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
@@ -265,12 +265,12 @@ export default function SettingsPage() {
 
       {/* Devnet Notice */}
       {!isMainnet && (
-        <Card className="border-dashed border-yellow-500/30 bg-yellow-500/5">
+        <Card className="border-dashed border-amber-500/30 !bg-amber-500/[0.02]">
           <CardContent className="py-4">
             <div className="flex items-center gap-3 text-sm">
-              <Info className="h-5 w-5 flex-shrink-0 text-yellow-500" />
+              <Info className="h-5 w-5 flex-shrink-0 text-amber-500" />
               <div>
-                <p className="text-yellow-700 dark:text-yellow-400">
+                <p className="text-amber-700 dark:text-amber-400">
                   <strong>Devnet Mode</strong> — You are using test tokens. No real funds at risk.
                 </p>
               </div>

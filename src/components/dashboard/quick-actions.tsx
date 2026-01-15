@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -14,7 +15,9 @@ import {
   PlayCircle,
   Wallet,
   Settings,
-  AlertCircle
+  AlertCircle,
+  UserPlus,
+  Zap,
 } from "lucide-react";
 import { useEmployees } from "@/hooks/use-employees";
 import { useTreasury } from "@/hooks/use-treasury";
@@ -24,10 +27,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AddEmployeeModal } from "./add-employee-modal";
 
 export function QuickActions() {
   const { activeEmployees, totalSalary } = useEmployees();
   const { balance } = useTreasury();
+  const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
 
   const hasEmployees = activeEmployees.length > 0;
   // USDC only - compare USDC balance directly to salary (also in USD/USDC)
@@ -42,12 +47,12 @@ export function QuickActions() {
     : null;
 
   return (
-    <Card>
+    <Card className="h-full">
       <CardHeader>
-        <CardTitle>Quick Actions</CardTitle>
+        <CardTitle className="font-display">Quick Actions</CardTitle>
         <CardDescription>Common operations</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-2">
+      <CardContent className="grid gap-3">
         {/* Run Payroll - Primary action */}
         <TooltipProvider>
           <Tooltip>
@@ -56,7 +61,7 @@ export function QuickActions() {
                 <Link href={canRunPayroll ? "/dashboard/payroll" : "#"}>
                   <Button
                     variant="default"
-                    className="w-full justify-start gap-3 h-auto py-3"
+                    className="w-full justify-start gap-3 h-auto py-3 rounded-xl"
                     disabled={!canRunPayroll}
                   >
                     {canRunPayroll ? (
@@ -88,9 +93,9 @@ export function QuickActions() {
         <Link href="/dashboard/treasury">
           <Button
             variant="outline"
-            className="w-full justify-start gap-3 h-auto py-3 border-stealth-500/30 hover:bg-stealth-500/10"
+            className="w-full justify-start gap-3 h-auto py-3 rounded-xl border-amber-500/30 hover:bg-amber-500/10 hover:border-amber-500/50"
           >
-            <Wallet className="h-5 w-5 text-stealth-500" />
+            <Wallet className="h-5 w-5 text-amber-500" />
             <div className="text-left">
               <p className="font-medium">Deposit Funds</p>
               <p className="text-xs text-muted-foreground">
@@ -100,27 +105,26 @@ export function QuickActions() {
           </Button>
         </Link>
 
-        {/* Add Employee */}
-        <Link href="/dashboard/employees">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-3 h-auto py-3"
-          >
-            <PlusCircle className="h-5 w-5" />
-            <div className="text-left">
-              <p className="font-medium">Add Employee</p>
-              <p className="text-xs text-muted-foreground">
-                Add team member
-              </p>
-            </div>
-          </Button>
-        </Link>
+        {/* Add Employee - Opens modal directly */}
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-3 h-auto py-3 rounded-xl"
+          onClick={() => setIsAddEmployeeOpen(true)}
+        >
+          <UserPlus className="h-5 w-5 text-teal-500" />
+          <div className="text-left">
+            <p className="font-medium">Add Employee</p>
+            <p className="text-xs text-muted-foreground">
+              Quick add team member
+            </p>
+          </div>
+        </Button>
 
         {/* Settings */}
         <Link href="/dashboard/settings">
           <Button
             variant="outline"
-            className="w-full justify-start gap-3 h-auto py-3"
+            className="w-full justify-start gap-3 h-auto py-3 rounded-xl"
           >
             <Settings className="h-5 w-5" />
             <div className="text-left">
@@ -132,6 +136,12 @@ export function QuickActions() {
           </Button>
         </Link>
       </CardContent>
+
+      {/* Add Employee Modal */}
+      <AddEmployeeModal
+        isOpen={isAddEmployeeOpen}
+        onClose={() => setIsAddEmployeeOpen(false)}
+      />
     </Card>
   );
 }
