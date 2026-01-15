@@ -4,11 +4,16 @@ import { prisma } from "@/lib/db";
 import {
   EncryptionService,
   getMasterKey,
-  encryptEmployeeData,
-  decryptEmployeeData,
 } from "@/lib/encryption";
-import { updateEmployeeSchema, validateInput } from "@/lib/validation";
+import { z } from "zod";
 import { logAudit, createAuditContext } from "@/lib/audit-log";
+
+// Schema for updating employee
+const updateEmployeeSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  salary: z.number().positive().optional(),
+  status: z.enum(["PENDING_INVITE", "ACTIVE", "PAUSED", "TERMINATED"]).optional(),
+});
 
 /**
  * GET /api/employees/:id - Get a single employee
@@ -50,20 +55,29 @@ export async function GET(
       masterKey
     );
 
-    const decrypted = decryptEmployeeData(
-      {
-        nameEncrypted: employee.nameEncrypted,
-        salaryEncrypted: employee.salaryEncrypted,
-        walletAddressEncrypted: employee.walletAddressEncrypted,
-      },
-      orgKey
+    // Decrypt employee data
+    const name = EncryptionService.decrypt(employee.nameEncrypted, orgKey);
+    const salary = parseFloat(
+      EncryptionService.decrypt(employee.salaryEncrypted, orgKey)
     );
+
+    // Generate invite URL for pending employees
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const inviteUrl = employee.inviteCode
+      ? `${appUrl}/join/${employee.inviteCode}`
+      : null;
 
     return NextResponse.json({
       employee: {
         id: employee.id,
-        ...decrypted,
+        name,
+        salary,
         status: employee.status,
+        stealthPayWallet: employee.stealthPayWallet,
+        inviteCode: employee.inviteCode,
+        inviteUrl,
+        inviteExpiresAt: employee.inviteExpiresAt,
+        registeredAt: employee.registeredAt,
         createdAt: employee.createdAt,
         updatedAt: employee.updatedAt,
       },
@@ -114,10 +128,13 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const validation = validateInput(updateEmployeeSchema, body);
+    const validation = updateEmployeeSchema.safeParse(body);
 
     if (!validation.success) {
-      return NextResponse.json({ error: validation.error }, { status: 400 });
+      return NextResponse.json(
+        { error: validation.error.errors[0]?.message || "Invalid input" },
+        { status: 400 }
+      );
     }
 
     const { name, salary, status } = validation.data;
@@ -159,20 +176,18 @@ export async function PATCH(
     });
 
     // Decrypt for response
-    const decrypted = decryptEmployeeData(
-      {
-        nameEncrypted: updated.nameEncrypted,
-        salaryEncrypted: updated.salaryEncrypted,
-        walletAddressEncrypted: updated.walletAddressEncrypted,
-      },
-      orgKey
+    const decryptedName = EncryptionService.decrypt(updated.nameEncrypted, orgKey);
+    const decryptedSalary = parseFloat(
+      EncryptionService.decrypt(updated.salaryEncrypted, orgKey)
     );
 
     return NextResponse.json({
       employee: {
         id: updated.id,
-        ...decrypted,
+        name: decryptedName,
+        salary: decryptedSalary,
         status: updated.status,
+        stealthPayWallet: updated.stealthPayWallet,
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt,
       },

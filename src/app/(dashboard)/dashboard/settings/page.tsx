@@ -2,6 +2,7 @@
 
 import { useOrganization } from "@/hooks/use-organization";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { useRequireOrganization } from "@/hooks/use-require-organization";
 import { useEmployees } from "@/hooks/use-employees";
 import { usePayrolls } from "@/hooks/use-payrolls";
 import {
@@ -38,6 +39,9 @@ const NETWORK = process.env.NEXT_PUBLIC_SOLANA_NETWORK || "devnet";
 const isMainnet = NETWORK === "mainnet-beta";
 
 export default function SettingsPage() {
+  // Redirect to /dashboard if no organization
+  const { isLoading: orgLoading, hasOrganization } = useRequireOrganization();
+
   const { organization, isLoading } = useOrganization();
   const { publicKey } = useWallet();
   const { employees } = useEmployees();
@@ -54,6 +58,20 @@ export default function SettingsPage() {
 
   const activeEmployees = employees.filter((e) => e.status === "ACTIVE").length;
   const completedPayrolls = payrolls.filter((p) => p.status === "COMPLETED").length;
+
+  // Show loading while checking org
+  if (orgLoading || !hasOrganization) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid gap-6 md:grid-cols-2">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-48 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

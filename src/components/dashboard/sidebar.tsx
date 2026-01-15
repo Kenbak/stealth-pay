@@ -16,6 +16,9 @@ import {
   RefreshCw,
   ChevronDown,
   FileText,
+  CircleDollarSign,
+  Building2,
+  Plus,
 } from "lucide-react";
 import { cn, truncateAddress } from "@/lib/utils";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -27,8 +30,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth, type Employment } from "@/contexts/auth-context";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const navigation = [
+// Admin navigation (for organization owners)
+const adminNavigation = [
   {
     name: "Dashboard",
     href: "/dashboard",
@@ -61,11 +67,23 @@ const navigation = [
   },
 ];
 
+// Employee navigation
+const employeeNavigation = [
+  {
+    name: "My Payments",
+    href: "/dashboard/my-payments",
+    icon: CircleDollarSign,
+  },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
-  const { publicKey, disconnect, wallet } = useWallet();
+  const { publicKey, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
   const [copied, setCopied] = useState(false);
+
+  // Single source of truth for all user data
+  const { isAdmin, isEmployee, organization, employments, isLoading } = useAuth();
 
   const copyAddress = () => {
     if (publicKey) {
@@ -78,6 +96,11 @@ export function Sidebar() {
   const changeWallet = () => {
     setVisible(true);
   };
+
+  // Show admin nav if user has an organization
+  const showAdminNav = isAdmin && organization;
+  // Show employee nav if user is an employee somewhere
+  const showEmployeeNav = isEmployee && employments.length > 0;
 
   return (
     <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col">
@@ -96,39 +119,144 @@ export function Sidebar() {
         {/* Navigation */}
         <nav className="flex flex-1 flex-col">
           <ul role="list" className="flex flex-1 flex-col gap-y-7">
-            <li>
-              <ul role="list" className="-mx-2 space-y-1">
-                {navigation.map((item) => {
-                  const isActive = pathname === item.href;
-                  return (
-                    <li key={item.name}>
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          "group flex gap-x-3 rounded-xl p-3 text-sm font-medium leading-6 transition-all duration-200",
-                          isActive
-                            ? "bg-gradient-to-r from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 shadow-sm"
-                            : "text-muted-foreground hover:bg-white/50 dark:hover:bg-white/5 hover:text-foreground"
-                        )}
-                      >
-                        <item.icon
-                          className={cn(
-                            "h-5 w-5 shrink-0 transition-colors",
-                            isActive
-                              ? "text-amber-500"
-                              : "text-muted-foreground group-hover:text-foreground"
-                          )}
-                        />
-                        {item.name}
-                        {isActive && (
-                          <div className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />
-                        )}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </li>
+            {isLoading ? (
+              // Loading skeleton
+              <li className="space-y-2">
+                <Skeleton className="h-10 w-full rounded-xl" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+              </li>
+            ) : (
+              <>
+                {/* Admin Navigation */}
+                {showAdminNav && (
+                  <li>
+                    {showEmployeeNav && (
+                      <div className="flex items-center gap-2 mb-3 px-2">
+                        <Building2 className="w-4 h-4 text-amber-500" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          {organization.name}
+                        </span>
+                      </div>
+                    )}
+                    <ul role="list" className="-mx-2 space-y-1">
+                      {adminNavigation.map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                          <li key={item.name}>
+                            <Link
+                              href={item.href}
+                              className={cn(
+                                "group flex gap-x-3 rounded-xl p-3 text-sm font-medium leading-6 transition-all duration-200",
+                                isActive
+                                  ? "bg-gradient-to-r from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 shadow-sm"
+                                  : "text-muted-foreground hover:bg-white/50 dark:hover:bg-white/5 hover:text-foreground"
+                              )}
+                            >
+                              <item.icon
+                                className={cn(
+                                  "h-5 w-5 shrink-0 transition-colors",
+                                  isActive
+                                    ? "text-amber-500"
+                                    : "text-muted-foreground group-hover:text-foreground"
+                                )}
+                              />
+                              {item.name}
+                              {isActive && (
+                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              )}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                )}
+
+                {/* Employee Navigation */}
+                {showEmployeeNav && (
+                  <li>
+                    {showAdminNav && (
+                      <div className="flex items-center gap-2 mb-3 px-2">
+                        <CircleDollarSign className="w-4 h-4 text-teal-500" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          My Employment
+                        </span>
+                      </div>
+                    )}
+                    <ul role="list" className="-mx-2 space-y-1">
+                      {employeeNavigation.map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                          <li key={item.name}>
+                            <Link
+                              href={item.href}
+                              className={cn(
+                                "group flex gap-x-3 rounded-xl p-3 text-sm font-medium leading-6 transition-all duration-200",
+                                isActive
+                                  ? "bg-gradient-to-r from-teal-500/10 to-teal-500/5 text-teal-600 dark:text-teal-400 shadow-sm"
+                                  : "text-muted-foreground hover:bg-white/50 dark:hover:bg-white/5 hover:text-foreground"
+                              )}
+                            >
+                              <item.icon
+                                className={cn(
+                                  "h-5 w-5 shrink-0 transition-colors",
+                                  isActive
+                                    ? "text-teal-500"
+                                    : "text-muted-foreground group-hover:text-foreground"
+                                )}
+                              />
+                              {item.name}
+                              {isActive && (
+                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-teal-500" />
+                              )}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    {/* Employment info */}
+                    <div className="mt-3 mx-1 px-3 py-2 rounded-lg bg-teal-500/5 border border-teal-500/10">
+                      {employments.map((emp: Employment) => (
+                        <div key={emp.id} className="text-xs text-muted-foreground">
+                          <span className="text-teal-400">{emp.organizationName}</span>
+                          <span className="text-muted-foreground/60"> · ${emp.salary.toLocaleString()}/mo</span>
+                        </div>
+                      ))}
+                    </div>
+                  </li>
+                )}
+
+                {/* Show create org option if user doesn't have one */}
+                {!showAdminNav && (
+                  <li>
+                    {showEmployeeNav && (
+                      <div className="flex items-center gap-2 mb-3 px-2 mt-6">
+                        <Building2 className="w-4 h-4 text-amber-500" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                          Start Your Own
+                        </span>
+                      </div>
+                    )}
+                    <ul role="list" className="-mx-2 space-y-1">
+                      <li>
+                        <Link
+                          href="/dashboard/create-org"
+                          className="group flex gap-x-3 rounded-xl p-3 text-sm font-medium leading-6 text-muted-foreground hover:bg-white/50 dark:hover:bg-white/5 hover:text-foreground"
+                        >
+                          <Plus className="h-5 w-5 shrink-0" />
+                          Create Organization
+                        </Link>
+                      </li>
+                    </ul>
+                    <p className="text-xs text-muted-foreground px-3 mt-2">
+                      Create your own org to send invoices or manage payroll
+                    </p>
+                  </li>
+                )}
+              </>
+            )}
 
             {/* User section */}
             <li className="mt-auto">

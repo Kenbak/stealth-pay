@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useInvoices } from "@/hooks/use-invoices";
+import { useRequireOrganization } from "@/hooks/use-require-organization";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +41,9 @@ import { downloadInvoicesCSV, downloadInvoiceDetailCSV, InvoiceExportData } from
 import { useOrganization } from "@/hooks/use-organization";
 
 export default function InvoicesPage() {
+  // Redirect to /dashboard if no organization
+  const { isLoading: orgLoading, hasOrganization } = useRequireOrganization();
+
   const {
     invoices,
     pendingInvoices,
@@ -157,6 +161,20 @@ export default function InvoicesPage() {
   };
 
   const fees = newInvoice.amount ? calculateInvoiceFees(parseFloat(newInvoice.amount)) : null;
+
+  // Show loading while checking org
+  if (orgLoading || !hasOrganization) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid gap-4 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

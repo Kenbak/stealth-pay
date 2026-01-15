@@ -78,24 +78,37 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       data: { status: "PROCESSING" },
     });
 
-    // Decrypt employee data
+    // Decrypt employee data and prepare payments
     const masterKey = getMasterKey();
     const orgKey = EncryptionService.decryptOrgKey(organization.encryptionKey, masterKey);
 
-    const paymentsToProcess = payroll.payments.map((payment) => {
-      const walletAddress = EncryptionService.decrypt(
-        payment.employee.walletAddressEncrypted,
-        orgKey
-      );
-      const salary = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
+    // Filter out employees without StealthPay wallet (not yet registered)
+    const paymentsToProcess = payroll.payments
+      .filter((payment) => {
+        if (!payment.employee.stealthPayWallet) {
+          console.warn(
+            `[PAYROLL EXECUTE] Skipping employee ${payment.employeeId}: No StealthPay wallet registered`
+          );
+          return false;
+        }
+        if (payment.employee.status !== "ACTIVE") {
+          console.warn(
+            `[PAYROLL EXECUTE] Skipping employee ${payment.employeeId}: Status is ${payment.employee.status}`
+          );
+          return false;
+        }
+        return true;
+      })
+      .map((payment) => {
+        const salary = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
 
-      return {
-        paymentId: payment.id,
-        employeeId: payment.employeeId,
-        walletAddress,
-        amount: salary,
-      };
-    });
+        return {
+          paymentId: payment.id,
+          employeeId: payment.employeeId,
+          stealthPayWallet: payment.employee.stealthPayWallet!, // Use StealthPay wallet, not personal wallet
+          amount: salary,
+        };
+      });
 
     // TODO: Integrate Radr ShadowWire API here
     // For now, simulate successful execution

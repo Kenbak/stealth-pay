@@ -3,28 +3,43 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useEffect, useState } from "react";
-import { Wallet, Lock, ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import { Wallet, Lock, ArrowRight, CheckCircle2, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import { useAuth } from "@/hooks/use-auth";
 
 interface RequireWalletProps {
   children: React.ReactNode;
 }
 
 /**
- * Protects content behind wallet connection
+ * Protects content behind wallet connection AND authentication
  * Security: Never expose dashboard without auth
  */
 export function RequireWallet({ children }: RequireWalletProps) {
   const { connected, connecting, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
+  const { isAuthenticated, isLoading: authLoading, authenticate } = useAuth();
   const [isClient, setIsClient] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Avoid hydration mismatch
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Auto-authenticate when wallet connects (if not already authenticated)
+  useEffect(() => {
+    async function autoAuth() {
+      if (connected && publicKey && !isAuthenticated && !authLoading && !isAuthenticating) {
+        setIsAuthenticating(true);
+        await authenticate();
+        setIsAuthenticating(false);
+      }
+    }
+    autoAuth();
+  }, [connected, publicKey, isAuthenticated, authLoading, authenticate, isAuthenticating]);
 
   // Show loading during SSR or while connecting
   if (!isClient || connecting) {
@@ -152,6 +167,79 @@ export function RequireWallet({ children }: RequireWalletProps) {
     );
   }
 
-  // Connected - render children
+  // Connected but authenticating - show signing prompt
+  if (isAuthenticating || authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-6 animate-in">
+          <div className="text-center">
+            <Link href="/" className="inline-block mb-4">
+              <Image
+                src="/logo.png"
+                alt="StealthPay"
+                width={64}
+                height={64}
+              />
+            </Link>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-8 space-y-6 text-center">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 mb-2">
+              <Loader2 className="w-7 h-7 text-amber-500 animate-spin" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-display font-semibold">Signing In...</h2>
+              <p className="text-sm text-muted-foreground">
+                Please sign the message in your wallet to continue
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Connected but not authenticated (signature rejected?)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-6 animate-in">
+          <div className="text-center">
+            <Link href="/" className="inline-block mb-4">
+              <Image
+                src="/logo.png"
+                alt="StealthPay"
+                width={64}
+                height={64}
+              />
+            </Link>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-8 space-y-6">
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-amber-500/10 mb-2">
+                <Lock className="w-7 h-7 text-amber-500" />
+              </div>
+              <h2 className="text-xl font-display font-semibold">Sign to Continue</h2>
+              <p className="text-sm text-muted-foreground">
+                Sign a message to verify you own this wallet. No transaction fees.
+              </p>
+            </div>
+
+            <Button
+              onClick={() => authenticate()}
+              className="w-full h-12 text-base gap-2"
+              size="lg"
+            >
+              <Lock className="w-5 h-5" />
+              Sign Message
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated - render children
   return <>{children}</>;
 }

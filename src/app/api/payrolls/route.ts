@@ -90,10 +90,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get active employees
+    // Get employees - only those who are ACTIVE AND have registered (stealthPayWallet)
     const whereClause: Record<string, unknown> = {
       organizationId: organization.id,
       status: "ACTIVE",
+      stealthPayWallet: { not: null }, // Must have registered their wallet
     };
 
     if (employeeIds && employeeIds.length > 0) {
@@ -105,6 +106,27 @@ export async function POST(request: NextRequest) {
     });
 
     if (employees.length === 0) {
+      // Check if there are pending employees
+      const pendingCount = await prisma.employee.count({
+        where: {
+          organizationId: organization.id,
+          OR: [
+            { status: "PENDING_INVITE" },
+            { stealthPayWallet: null },
+          ],
+        },
+      });
+
+      if (pendingCount > 0) {
+        return NextResponse.json(
+          {
+            error: `No eligible employees. ${pendingCount} employee(s) haven't registered yet. They need to accept their invite first.`,
+            pendingCount,
+          },
+          { status: 400 }
+        );
+      }
+
       return NextResponse.json(
         { error: "No active employees found" },
         { status: 400 }

@@ -5,7 +5,6 @@ import { logAudit, createAuditContext } from "@/lib/audit-log";
 import {
   EncryptionService,
   getMasterKey,
-  decryptEmployeeData,
 } from "@/lib/encryption";
 
 interface RouteParams {
@@ -60,16 +59,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Decrypt payment and employee data
     const decryptedPayments = payroll.payments.map((payment) => {
-      const decryptedEmployee = decryptEmployeeData(
-        {
-          nameEncrypted: payment.employee.nameEncrypted,
-          salaryEncrypted: payment.employee.salaryEncrypted,
-          walletAddressEncrypted: payment.employee.walletAddressEncrypted,
-        },
-        orgKey
-      );
-
-      // Decrypt amount
+      const name = EncryptionService.decrypt(payment.employee.nameEncrypted, orgKey);
       const amount = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
 
       return {
@@ -79,8 +69,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         status: payment.status,
         employee: {
           id: payment.employee.id,
-          name: decryptedEmployee.name,
-          walletAddress: decryptedEmployee.walletAddress,
+          name,
+          // Use StealthPay wallet (employer sees this, not the real wallet)
+          stealthPayWallet: payment.employee.stealthPayWallet,
+          employeeStatus: payment.employee.status,
         },
       };
     });

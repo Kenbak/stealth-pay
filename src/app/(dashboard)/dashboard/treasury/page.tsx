@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useRequireOrganization } from "@/hooks/use-require-organization";
 import { useQuery } from "@tanstack/react-query";
 import {
   Card,
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Wallet,
   ArrowDownToLine,
@@ -46,6 +48,9 @@ const NETWORK = process.env.NEXT_PUBLIC_SOLANA_NETWORK || "devnet";
 const isMainnet = NETWORK === "mainnet-beta";
 
 export default function TreasuryPage() {
+  // Redirect to /dashboard if no organization
+  const { isLoading: orgLoading, hasOrganization } = useRequireOrganization();
+
   const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
   const { totalSalary, activeEmployees } = useEmployees();
@@ -232,6 +237,20 @@ export default function TreasuryPage() {
 
   // Swap info
   const swapRate = currentQuote?.rate || solPrice;
+
+  // Show loading while checking org
+  if (orgLoading || !hasOrganization) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid gap-4 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-40 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

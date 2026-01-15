@@ -78,22 +78,45 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const masterKey = getMasterKey();
     const orgKey = EncryptionService.decryptOrgKey(organization.encryptionKey, masterKey);
 
-    const payments = payroll.payments.map((payment) => {
-      const walletAddress = EncryptionService.decrypt(
-        payment.employee.walletAddressEncrypted,
-        orgKey
-      );
-      const salary = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
-      const name = EncryptionService.decrypt(payment.employee.nameEncrypted, orgKey);
+    // Filter and prepare payments - only include active employees with registered wallets
+    const payments = payroll.payments
+      .filter((payment) => {
+        // Skip employees who haven't registered yet
+        if (!payment.employee.stealthPayWallet) {
+          console.warn(
+            `[PAYROLL PREPARE] Skipping employee ${payment.employeeId}: No StealthPay wallet registered`
+          );
+          return false;
+        }
+        // Skip employees who aren't active
+        if (payment.employee.status !== "ACTIVE") {
+          console.warn(
+            `[PAYROLL PREPARE] Skipping employee ${payment.employeeId}: Status is ${payment.employee.status}`
+          );
+          return false;
+        }
+        return true;
+      })
+      .map((payment) => {
+        const salary = EncryptionService.decryptSalary(payment.amountEncrypted, orgKey);
+        const name = EncryptionService.decrypt(payment.employee.nameEncrypted, orgKey);
 
-      return {
-        paymentId: payment.id,
-        employeeId: payment.employeeId,
-        employeeName: name,
-        walletAddress,
-        amount: salary,
-      };
-    });
+        return {
+          paymentId: payment.id,
+          employeeId: payment.employeeId,
+          employeeName: name,
+          // Use StealthPay wallet (employer sees this, not the real wallet)
+          stealthPayWallet: payment.employee.stealthPayWallet!,
+          amount: salary,
+        };
+      });
+
+    if (payments.length === 0) {
+      return NextResponse.json(
+        { error: "No eligible employees for this payroll. Ensure employees have registered their wallets." },
+        { status: 400 }
+      );
+    }
 
     // Mark as processing
     await prisma.payroll.update({

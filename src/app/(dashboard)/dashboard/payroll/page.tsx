@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { usePayrolls, type Payroll, type PayrollStatus, type PayrollDetail } from "@/hooks/use-payrolls";
 import { useEmployees } from "@/hooks/use-employees";
 import { usePayrollExecution } from "@/hooks/use-payroll-execution";
+import { useRequireOrganization } from "@/hooks/use-require-organization";
 import {
   Card,
   CardContent,
@@ -91,6 +92,9 @@ function getTokenSymbol(mint: string): string {
 }
 
 export default function PayrollPage() {
+  // Redirect to /dashboard if no organization
+  const { isLoading: orgLoading, hasOrganization } = useRequireOrganization();
+
   const {
     payrolls,
     isLoading,
@@ -200,6 +204,20 @@ export default function PayrollPage() {
     setPayrollToExecute(null);
     resetExecution();
   };
+
+  // Show loading while checking org
+  if (orgLoading || !hasOrganization) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid gap-4 md:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-32 rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

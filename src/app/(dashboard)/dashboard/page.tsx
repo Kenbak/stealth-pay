@@ -4,13 +4,12 @@ import { StatsCards } from "@/components/dashboard/stats-cards";
 import { RecentPayrolls } from "@/components/dashboard/recent-payrolls";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { SetupOrganization } from "@/components/onboarding/setup-organization";
-import { useOrganization } from "@/hooks/use-organization";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/contexts/auth-context";
 import { Skeleton } from "@/components/ui/skeleton";
+import { redirect } from "next/navigation";
 
 export default function DashboardPage() {
-  const { isAuthenticated } = useAuth();
-  const { organization, isLoading } = useOrganization();
+  const { isLoading, isAdmin, isEmployee, organization, employments } = useAuth();
 
   // Loading state
   if (isLoading) {
@@ -29,8 +28,13 @@ export default function DashboardPage() {
     );
   }
 
-  // Need to authenticate or create organization
-  if (!isAuthenticated || !organization) {
+  // If no org but is an employee, redirect to my-payments
+  if (!isAdmin && isEmployee && employments.length > 0) {
+    redirect("/dashboard/my-payments");
+  }
+
+  // No org → show create org
+  if (!isAdmin || !organization) {
     return <SetupOrganization />;
   }
 

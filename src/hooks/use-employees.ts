@@ -4,26 +4,36 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./use-auth";
 import { useToast } from "@/components/ui/use-toast";
 
+export type EmployeeStatus = "PENDING_INVITE" | "ACTIVE" | "PAUSED" | "TERMINATED";
+
 export interface Employee {
   id: string;
   name: string;
-  walletAddress: string;
   salary: number;
-  status: "ACTIVE" | "PAUSED" | "TERMINATED";
+  status: EmployeeStatus;
+  // StealthPay wallet (set when employee registers via invite)
+  stealthPayWallet: string | null;
+  // Payroll eligibility (true if ACTIVE and has registered wallet)
+  isPayrollReady: boolean;
+  // Invite info (for pending employees)
+  inviteCode: string | null;
+  inviteUrl: string | null;
+  inviteExpiresAt: string | null;
+  registeredAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateEmployeeInput {
   name: string;
-  walletAddress: string;
   salary: number;
+  // Note: walletAddress removed - employee registers their own wallet via invite
 }
 
 export interface UpdateEmployeeInput {
   name?: string;
   salary?: number;
-  status?: "ACTIVE" | "PAUSED" | "TERMINATED";
+  status?: EmployeeStatus;
 }
 
 export function useEmployees() {
@@ -68,12 +78,14 @@ export function useEmployees() {
 
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: ["organization"] });
       toast({
         title: "Employee added",
-        description: "The employee has been added successfully",
+        description: data.employee?.inviteUrl
+          ? "Invite link generated. Share it with the employee."
+          : "The employee has been added successfully",
       });
     },
     onError: (error) => {
@@ -155,14 +167,22 @@ export function useEmployees() {
     },
   });
 
-  // Calculate totals
-  const activeEmployees = query.data?.filter((e) => e.status === "ACTIVE") || [];
+  // Calculate totals and filter employees
+  const allEmployees = query.data || [];
+  const activeEmployees = allEmployees.filter((e) => e.status === "ACTIVE");
+  const payrollReadyEmployees = allEmployees.filter((e) => e.isPayrollReady);
+  const pendingInviteEmployees = allEmployees.filter((e) => e.status === "PENDING_INVITE");
+
   const totalSalary = activeEmployees.reduce((sum, e) => sum + e.salary, 0);
+  const payrollReadySalary = payrollReadyEmployees.reduce((sum, e) => sum + e.salary, 0);
 
   return {
-    employees: query.data || [],
+    employees: allEmployees,
     activeEmployees,
+    payrollReadyEmployees,
+    pendingInviteEmployees,
     totalSalary,
+    payrollReadySalary,
     isLoading: query.isLoading,
     error: query.error,
     createEmployee: createMutation.mutate,

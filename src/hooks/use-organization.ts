@@ -1,46 +1,27 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "./use-auth";
-import { useToast } from "@/components/ui/use-toast";
+import { useAuth, type Organization } from "@/contexts/auth-context";
 
-interface Organization {
-  id: string;
-  name: string;
-  adminWallet: string;
-  createdAt: string;
-  employeeCount: number;
-  payrollCount: number;
-}
-
+/**
+ * Hook for organization data.
+ *
+ * This is now a simple wrapper around useAuth() for backwards compatibility.
+ * All organization data comes from the unified auth context.
+ */
 export function useOrganization() {
-  const { getAuthHeaders, isAuthenticated } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const {
+    organization,
+    isAdmin,
+    isLoading,
+    isAuthenticated,
+    setOrganization,
+    refetchUser,
+    getAuthHeaders,
+  } = useAuth();
 
-  const query = useQuery({
-    queryKey: ["organization"],
-    queryFn: async () => {
-      const res = await fetch("/api/organizations", {
-        headers: getAuthHeaders(),
-      });
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error("Unauthorized");
-        }
-        throw new Error("Failed to fetch organization");
-      }
-
-      const data = await res.json();
-      return data.organization as Organization | null;
-    },
-    enabled: isAuthenticated,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (name: string) => {
+  // Create organization mutation
+  const createOrganization = async (name: string): Promise<Organization | null> => {
+    try {
       const res = await fetch("/api/organizations", {
         method: "POST",
         headers: getAuthHeaders(),
@@ -52,36 +33,26 @@ export function useOrganization() {
         throw new Error(error.error || "Failed to create organization");
       }
 
-      return res.json();
-    },
-    onSuccess: (data) => {
-      // Immediately update the cache with the new organization
-      // This triggers an instant re-render without waiting for refetch
-      queryClient.setQueryData(["organization"], data.organization);
+      const data = await res.json();
 
-      // Also invalidate to ensure fresh data on next fetch
-      queryClient.invalidateQueries({ queryKey: ["organization"] });
+      // Update auth context immediately
+      setOrganization(data.organization);
 
-      localStorage.setItem("organization", JSON.stringify(data.organization));
-      toast({
-        title: "Organization created",
-        description: `Welcome to ${data.organization.name}!`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Failed to create organization",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+      return data.organization;
+    } catch (error) {
+      console.error("Create organization error:", error);
+      throw error;
+    }
+  };
 
   return {
-    organization: query.data,
-    isLoading: query.isLoading,
-    error: query.error,
-    createOrganization: createMutation.mutate,
-    isCreating: createMutation.isPending,
+    organization,
+    isAdmin,
+    isLoading: isLoading || !isAuthenticated,
+    createOrganization,
+    refetch: refetchUser,
   };
 }
+
+// Re-export Organization type for convenience
+export type { Organization };

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useEmployees, type Employee } from "@/hooks/use-employees";
+import { useEmployees, type Employee, type EmployeeStatus } from "@/hooks/use-employees";
+import { useRequireOrganization } from "@/hooks/use-require-organization";
 import {
   Card,
   CardContent,
@@ -29,31 +30,34 @@ import {
   Loader2,
   Wallet,
   X,
-  UserPlus,
+  Copy,
+  CheckCircle2,
+  Clock,
+  Link as LinkIcon,
 } from "lucide-react";
 import { formatCurrency, truncateAddress } from "@/lib/utils";
+import { AddEmployeeModal } from "@/components/dashboard/add-employee-modal";
 
 export default function EmployeesPage() {
+  // Redirect to /dashboard if no organization
+  const { isLoading: orgLoading, hasOrganization } = useRequireOrganization();
+
   const {
     employees,
     isLoading,
-    createEmployee,
-    isCreating,
     updateEmployee,
     isUpdating,
     deleteEmployee,
     isDeleting,
     totalSalary,
     activeEmployees,
+    payrollReadyEmployees,
+    pendingInviteEmployees,
+    payrollReadySalary,
   } = useEmployees();
 
   // Add modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newEmployee, setNewEmployee] = useState({
-    name: "",
-    walletAddress: "",
-    salary: "",
-  });
 
   // Edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -61,20 +65,11 @@ export default function EmployeesPage() {
   const [editData, setEditData] = useState({
     name: "",
     salary: "",
-    status: "ACTIVE" as "ACTIVE" | "PAUSED" | "TERMINATED",
+    status: "ACTIVE" as EmployeeStatus,
   });
 
-  const handleAddEmployee = () => {
-    if (newEmployee.name && newEmployee.walletAddress && newEmployee.salary) {
-      createEmployee({
-        name: newEmployee.name,
-        walletAddress: newEmployee.walletAddress,
-        salary: parseFloat(newEmployee.salary),
-      });
-      setNewEmployee({ name: "", walletAddress: "", salary: "" });
-      setIsAddOpen(false);
-    }
-  };
+  // Copy state
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleEditClick = (employee: Employee) => {
     setEditingEmployee(employee);
@@ -107,6 +102,63 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleCopyInvite = async (employee: Employee) => {
+    if (employee.inviteUrl) {
+      await navigator.clipboard.writeText(employee.inviteUrl);
+      setCopiedId(employee.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
+
+  const getStatusBadge = (employee: Employee) => {
+    if (employee.status === "PENDING_INVITE") {
+      return (
+        <Badge variant="secondary" className="bg-amber-500/10 text-amber-500">
+          <Clock className="w-3 h-3 mr-1" />
+          pending invite
+        </Badge>
+      );
+    }
+    if (employee.status === "ACTIVE" && employee.isPayrollReady) {
+      return (
+        <Badge variant="secondary" className="bg-teal-500/10 text-teal-500">
+          <CheckCircle2 className="w-3 h-3 mr-1" />
+          ready
+        </Badge>
+      );
+    }
+    if (employee.status === "ACTIVE" && !employee.isPayrollReady) {
+      return (
+        <Badge variant="secondary" className="bg-amber-500/10 text-amber-500">
+          <Clock className="w-3 h-3 mr-1" />
+          awaiting wallet
+        </Badge>
+      );
+    }
+    if (employee.status === "PAUSED") {
+      return (
+        <Badge variant="secondary" className="bg-slate-500/10 text-slate-500">
+          paused
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="secondary" className="bg-red-500/10 text-red-500">
+        terminated
+      </Badge>
+    );
+  };
+
+  // Show loading while checking org
+  if (orgLoading || !hasOrganization) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-64 rounded-2xl" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -123,117 +175,17 @@ export default function EmployeesPage() {
         </Button>
       </div>
 
-      {/* Add Employee Modal (Native) */}
-      {isAddOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in-0 duration-200"
-            onClick={() => setIsAddOpen(false)}
-          />
+      {/* Add Employee Modal */}
+      <AddEmployeeModal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} />
 
-          {/* Modal */}
-          <div className="relative z-50 w-full max-w-md max-h-[85vh] overflow-y-auto glass border-white/10 rounded-2xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                  <UserPlus className="h-5 w-5 text-amber-500" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold font-display">Add New Employee</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Add a team member to your payroll
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsAddOpen(false)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  placeholder="John Doe"
-                  value={newEmployee.name}
-                  onChange={(e) =>
-                    setNewEmployee({ ...newEmployee, name: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="wallet">Solana Wallet Address</Label>
-                <Input
-                  id="wallet"
-                  placeholder="Abc123..."
-                  className="font-mono"
-                  value={newEmployee.walletAddress}
-                  onChange={(e) =>
-                    setNewEmployee({
-                      ...newEmployee,
-                      walletAddress: e.target.value,
-                    })
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  The employee&apos;s Solana wallet for receiving payments
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="salary">Monthly Salary (USDC)</Label>
-                <Input
-                  id="salary"
-                  type="number"
-                  placeholder="5000"
-                  value={newEmployee.salary}
-                  onChange={(e) =>
-                    setNewEmployee({ ...newEmployee, salary: e.target.value })
-                  }
-                />
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-2 p-6 border-t border-white/10">
-              <Button variant="outline" onClick={() => setIsAddOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddEmployee} disabled={isCreating}>
-                {isCreating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  "Add Employee"
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Employee Modal (Native) */}
+      {/* Edit Employee Modal */}
       {isEditOpen && editingEmployee && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in-0 duration-200"
             onClick={() => setIsEditOpen(false)}
           />
-
-          {/* Modal */}
           <div className="relative z-50 w-full max-w-md max-h-[85vh] overflow-y-auto glass border-white/10 rounded-2xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
-            {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-white/10">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
@@ -254,7 +206,6 @@ export default function EmployeesPage() {
               </button>
             </div>
 
-            {/* Content */}
             <div className="p-6 space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-name">Name</Label>
@@ -267,16 +218,18 @@ export default function EmployeesPage() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Wallet Address</Label>
-                <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono text-muted-foreground">
-                  <Wallet className="h-4 w-4" />
-                  {editingEmployee.walletAddress}
+              {editingEmployee.stealthPayWallet && (
+                <div className="space-y-2">
+                  <Label>StealthPay Wallet</Label>
+                  <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono text-muted-foreground">
+                    <Wallet className="h-4 w-4" />
+                    {truncateAddress(editingEmployee.stealthPayWallet, 8)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This is the employee&apos;s private receiving wallet
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Wallet address cannot be modified for security
-                </p>
-              </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="edit-salary">Monthly Salary (USDC)</Label>
@@ -294,7 +247,7 @@ export default function EmployeesPage() {
                 <Label htmlFor="edit-status">Status</Label>
                 <Select
                   value={editData.status}
-                  onValueChange={(value: "ACTIVE" | "PAUSED" | "TERMINATED") =>
+                  onValueChange={(value: EmployeeStatus) =>
                     setEditData({ ...editData, status: value })
                   }
                 >
@@ -310,7 +263,6 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="flex justify-end gap-2 p-6 border-t border-white/10">
               <Button variant="outline" onClick={() => setIsEditOpen(false)}>
                 Cancel
@@ -331,7 +283,7 @@ export default function EmployeesPage() {
       )}
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3 stagger-children">
+      <div className="grid gap-4 md:grid-cols-4 stagger-children">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -345,23 +297,35 @@ export default function EmployeesPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Active
+              Ready for Payroll
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-display font-bold text-teal-500">
-              {activeEmployees.length}
+              {payrollReadyEmployees.length}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Monthly Payroll
+              Pending Invite
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-display font-bold">{formatCurrency(totalSalary)}</div>
+            <div className="text-2xl font-display font-bold text-amber-500">
+              {pendingInviteEmployees.length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Payroll Ready Total
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-display font-bold">{formatCurrency(payrollReadySalary)}</div>
           </CardContent>
         </Card>
       </div>
@@ -400,21 +364,57 @@ export default function EmployeesPage() {
               {employees.map((employee) => (
                 <div
                   key={employee.id}
-                  className="flex items-center justify-between p-4 rounded-xl border hover:border-amber-500/30 transition-all duration-200"
+                  className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 ${
+                    employee.isPayrollReady
+                      ? "hover:border-teal-500/30"
+                      : "hover:border-amber-500/30 border-dashed"
+                  }`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                      <span className="text-amber-500 font-display font-semibold">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                      employee.isPayrollReady
+                        ? "bg-teal-500/10"
+                        : "bg-amber-500/10"
+                    }`}>
+                      <span className={`font-display font-semibold ${
+                        employee.isPayrollReady
+                          ? "text-teal-500"
+                          : "text-amber-500"
+                      }`}>
                         {employee.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div>
                       <p className="font-medium">{employee.name}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Wallet className="h-3 w-3" />
-                        <span className="font-mono">
-                          {truncateAddress(employee.walletAddress, 6)}
-                        </span>
+                        {employee.stealthPayWallet ? (
+                          <>
+                            <Wallet className="h-3 w-3" />
+                            <span className="font-mono">
+                              {truncateAddress(employee.stealthPayWallet, 6)}
+                            </span>
+                          </>
+                        ) : employee.inviteUrl ? (
+                          <button
+                            onClick={() => handleCopyInvite(employee)}
+                            className="flex items-center gap-1 hover:text-amber-500 transition-colors"
+                          >
+                            {copiedId === employee.id ? (
+                              <>
+                                <CheckCircle2 className="h-3 w-3 text-teal-500" />
+                                <span className="text-teal-500">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <LinkIcon className="h-3 w-3" />
+                                <span>Copy invite link</span>
+                                <Copy className="h-3 w-3" />
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <span className="italic">No wallet registered</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -424,18 +424,7 @@ export default function EmployeesPage() {
                       <p className="font-display font-semibold">
                         {formatCurrency(employee.salary)}
                       </p>
-                      <Badge
-                        variant="secondary"
-                        className={
-                          employee.status === "ACTIVE"
-                            ? "bg-teal-500/10 text-teal-500"
-                            : employee.status === "PAUSED"
-                            ? "bg-amber-500/10 text-amber-500"
-                            : "bg-red-500/10 text-red-500"
-                        }
-                      >
-                        {employee.status.toLowerCase()}
-                      </Badge>
+                      {getStatusBadge(employee)}
                     </div>
 
                     <div className="flex gap-1">

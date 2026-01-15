@@ -42,16 +42,31 @@ model Employee {
   // Encrypted fields (using org's encryption key)
   nameEncrypted          String // AES-256-GCM encrypted
   salaryEncrypted        String // AES-256-GCM encrypted
-  walletAddressEncrypted String // AES-256-GCM encrypted (for extra privacy)
+
+  // StealthPay Wallet - derived from employee's main wallet
+  // This is NOT encrypted - employer can see this burner address
+  // Employee's REAL wallet is never stored
+  stealthPayWallet String?
+
+  // Hash of employee's main wallet (for login/lookup)
+  // Stored as SHA256 hash - employer cannot reverse to get actual address
+  mainWalletHash String?
+
+  // Invite system for employee self-registration
+  inviteCode      String?   @unique
+  inviteExpiresAt DateTime?
+  registeredAt    DateTime? // When employee accepted invite
 
   // Status
-  status EmployeeStatus @default(ACTIVE)
+  status EmployeeStatus @default(PENDING_INVITE)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   payments Payment[]
 
+  @@index([inviteCode])
+  @@index([mainWalletHash])
   @@map("employees")
 }
 
@@ -112,9 +127,10 @@ model Payment {
 }
 
 enum EmployeeStatus {
-  ACTIVE
-  PAUSED
-  TERMINATED
+  PENDING_INVITE  // Invited but hasn't registered yet
+  ACTIVE          // Registered and receiving payroll
+  PAUSED          // Temporarily paused from payroll
+  TERMINATED      // No longer employed
 }
 
 enum PayrollStatus {
