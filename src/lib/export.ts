@@ -301,3 +301,169 @@ export function downloadPayrollDetailJSON(payroll: PayrollDetailExport, orgName?
     : `payroll-${date}-detail.json`;
   downloadFile(json, filename, "application/json");
 }
+
+// ============================================
+// INVOICE EXPORTS
+// ============================================
+
+import { calculateInvoiceFees } from "./fees";
+
+export interface InvoiceExportData {
+  id: string;
+  publicId: string;
+  amount: number;
+  tokenMint: string;
+  description: string;
+  dueDate: string | null;
+  status: string;
+  payerWallet: string | null;
+  paidAt: string | null;
+  platformFee: number | null;
+  createdAt: string;
+}
+
+/**
+ * Export invoices to CSV format
+ * Note: Payer wallet is intentionally excluded for privacy
+ */
+export function exportInvoicesToCSV(invoices: InvoiceExportData[]): string {
+  const headers = [
+    "Invoice ID",
+    "Description",
+    "Amount (USDC)",
+    "Platform Fee (USDC)",
+    "Client Pays (USDC)",
+    "Status",
+    "Due Date",
+    "Paid At",
+    "Created At",
+  ];
+
+  const rows = invoices.map(invoice => {
+    const fees = calculateInvoiceFees(invoice.amount);
+    return [
+      invoice.publicId,
+      `"${invoice.description.replace(/"/g, '""')}"`, // Escape quotes
+      invoice.amount.toFixed(2),
+      invoice.platformFee?.toFixed(2) || "0.00",
+      fees.totalClientPays.toFixed(2),
+      invoice.status,
+      invoice.dueDate ? new Date(invoice.dueDate).toISOString().split("T")[0] : "",
+      invoice.paidAt ? new Date(invoice.paidAt).toISOString() : "",
+      new Date(invoice.createdAt).toISOString(),
+    ].join(",");
+  });
+
+  return [headers.join(","), ...rows].join("\n");
+}
+
+/**
+ * Export invoices to JSON format
+ * Note: Payer wallet is intentionally excluded for privacy
+ */
+export function exportInvoicesToJSON(invoices: InvoiceExportData[]): string {
+  const paidInvoices = invoices.filter(i => i.status === "PAID");
+  const pendingInvoices = invoices.filter(i => i.status === "PENDING");
+
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    totalInvoices: invoices.length,
+    summary: {
+      totalPaid: paidInvoices.reduce((sum, i) => sum + i.amount, 0),
+      totalPending: pendingInvoices.reduce((sum, i) => sum + i.amount, 0),
+      paidCount: paidInvoices.length,
+      pendingCount: pendingInvoices.length,
+      cancelledCount: invoices.filter(i => i.status === "CANCELLED").length,
+    },
+    invoices: invoices.map(invoice => {
+      const fees = calculateInvoiceFees(invoice.amount);
+      return {
+        publicId: invoice.publicId,
+        description: invoice.description,
+        amounts: {
+          invoiceAmount: invoice.amount,
+          platformFee: invoice.platformFee || fees.stealthFee,
+          privacyFee: fees.shadowwireFee,
+          clientPays: fees.totalClientPays,
+        },
+        status: invoice.status,
+        dates: {
+          createdAt: invoice.createdAt,
+          dueDate: invoice.dueDate,
+          paidAt: invoice.paidAt,
+        },
+        // payerWallet intentionally excluded for privacy
+      };
+    }),
+  };
+
+  return JSON.stringify(exportData, null, 2);
+}
+
+/**
+ * Download invoices as CSV
+ */
+export function downloadInvoicesCSV(invoices: InvoiceExportData[], orgName?: string) {
+  const csv = exportInvoicesToCSV(invoices);
+  const date = new Date().toISOString().split("T")[0];
+  const filename = orgName
+    ? `${orgName.toLowerCase().replace(/\s+/g, "-")}-invoices-${date}.csv`
+    : `invoices-${date}.csv`;
+  downloadFile(csv, filename, "text/csv");
+}
+
+/**
+ * Download invoices as JSON
+ */
+export function downloadInvoicesJSON(invoices: InvoiceExportData[], orgName?: string) {
+  const json = exportInvoicesToJSON(invoices);
+  const date = new Date().toISOString().split("T")[0];
+  const filename = orgName
+    ? `${orgName.toLowerCase().replace(/\s+/g, "-")}-invoices-${date}.json`
+    : `invoices-${date}.json`;
+  downloadFile(json, filename, "application/json");
+}
+
+/**
+ * Export single invoice detail to CSV
+ * Note: Payer wallet is intentionally excluded for privacy
+ */
+export function exportInvoiceDetailToCSV(invoice: InvoiceExportData): string {
+  const fees = calculateInvoiceFees(invoice.amount);
+
+  const lines = [
+    "INVOICE DETAILS",
+    "",
+    `Invoice ID,${invoice.publicId}`,
+    `Description,"${invoice.description.replace(/"/g, '""')}"`,
+    `Status,${invoice.status}`,
+    "",
+    "AMOUNTS",
+    `Invoice Amount,${invoice.amount.toFixed(2)} USDC`,
+    `Platform Fee (${fees.stealthFeeRate}%),${fees.stealthFee.toFixed(2)} USDC`,
+    `Privacy Fee (${fees.shadowwireFeeRate}%),${fees.shadowwireFee.toFixed(2)} USDC`,
+    `Client Pays,${fees.totalClientPays.toFixed(2)} USDC`,
+    `You Receive,${fees.freelancerReceives.toFixed(2)} USDC`,
+    "",
+    "DATES",
+    `Created,${new Date(invoice.createdAt).toISOString()}`,
+    `Due Date,${invoice.dueDate ? new Date(invoice.dueDate).toISOString().split("T")[0] : "N/A"}`,
+    `Paid At,${invoice.paidAt ? new Date(invoice.paidAt).toISOString() : "N/A"}`,
+    "",
+    "PRIVACY",
+    "Payment received via ShadowWire (payer identity protected)",
+  ];
+
+  return lines.join("\n");
+}
+
+/**
+ * Download single invoice as CSV
+ */
+export function downloadInvoiceDetailCSV(invoice: InvoiceExportData, orgName?: string) {
+  const csv = exportInvoiceDetailToCSV(invoice);
+  const filename = orgName
+    ? `${orgName.toLowerCase().replace(/\s+/g, "-")}-invoice-${invoice.publicId}.csv`
+    : `invoice-${invoice.publicId}.csv`;
+  downloadFile(csv, filename, "text/csv");
+}

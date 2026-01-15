@@ -11,6 +11,8 @@ import { nanoid } from "nanoid";
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthUser(request);
+    console.log("[API/INVOICES] GET - user:", user?.wallet);
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -19,6 +21,8 @@ export async function GET(request: NextRequest) {
       where: { adminWallet: user.wallet },
       select: { id: true },
     });
+
+    console.log("[API/INVOICES] Organization for wallet:", user.wallet, "->", organization?.id || "NOT FOUND");
 
     if (!organization) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
@@ -40,6 +44,8 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       take: limit,
     });
+
+    console.log("[API/INVOICES] Found", invoices.length, "invoices for org:", organization.id);
 
     return NextResponse.json({
       invoices: invoices.map((inv) => ({

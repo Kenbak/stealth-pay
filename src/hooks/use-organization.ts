@@ -58,10 +58,10 @@ export function useOrganization() {
       // Immediately update the cache with the new organization
       // This triggers an instant re-render without waiting for refetch
       queryClient.setQueryData(["organization"], data.organization);
-      
+
       // Also invalidate to ensure fresh data on next fetch
       queryClient.invalidateQueries({ queryKey: ["organization"] });
-      
+
       localStorage.setItem("organization", JSON.stringify(data.organization));
       toast({
         title: "Organization created",
