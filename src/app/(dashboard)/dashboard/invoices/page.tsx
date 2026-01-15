@@ -275,42 +275,39 @@ export default function InvoicesPage() {
                 </DialogFooter>
               </>
             ) : (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-teal-500" />
-                    Invoice Created!
-                  </DialogTitle>
-                  <DialogDescription>
-                    Share this link with your client to receive payment
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-6">
-                  <div className="p-4 rounded-lg bg-muted/50 flex items-center gap-2">
-                    <LinkIcon className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <code className="text-sm truncate flex-1">{createdInvoice.paymentUrl}</code>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleCopyLink(createdInvoice.paymentUrl)}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
+              <div className="flex flex-col items-center text-center py-2">
+                <div className="w-12 h-12 rounded-full bg-teal-500/10 flex items-center justify-center mb-4">
+                  <CheckCircle2 className="w-6 h-6 text-teal-500" />
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={resetDialog}>
+                <h3 className="text-lg font-semibold mb-1">Invoice Created!</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Share this link with your client to receive payment
+                </p>
+                <div className="w-full p-3 rounded-lg bg-muted/50 flex items-center gap-2 mb-4">
+                  <LinkIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <code className="text-xs truncate flex-1">{createdInvoice.paymentUrl}</code>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => handleCopyLink(createdInvoice.paymentUrl)}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex gap-2 w-full">
+                  <Button variant="outline" onClick={resetDialog} className="flex-1">
                     Close
                   </Button>
                   <Button
                     onClick={() => handleCopyLink(createdInvoice.paymentUrl)}
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950"
+                    className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950"
                   >
                     <Copy className="w-4 h-4 mr-2" />
                     Copy Link
                   </Button>
-                </DialogFooter>
-              </>
+                </div>
+              </div>
             )}
           </DialogContent>
         </Dialog>
