@@ -191,7 +191,7 @@ model Invoice {
   status      InvoiceStatus @default(PENDING)
 
   // Payment info (filled when paid)
-  payerWallet String?
+  // Note: payerWallet intentionally NOT stored for privacy
   txSignature String?
   paidAt      DateTime?
 

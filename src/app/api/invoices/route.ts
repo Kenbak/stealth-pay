@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         description: inv.description,
         dueDate: inv.dueDate?.toISOString() || null,
         status: inv.status,
-        payerWallet: inv.payerWallet,
+        // payerWallet NOT returned for privacy
         paidAt: inv.paidAt?.toISOString() || null,
         platformFee: inv.platformFee ? Number(inv.platformFee) : null,
         createdAt: inv.createdAt.toISOString(),

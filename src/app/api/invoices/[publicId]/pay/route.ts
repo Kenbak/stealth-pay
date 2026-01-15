@@ -16,11 +16,12 @@ export async function POST(
   try {
     const { publicId } = await params;
     const body = await request.json();
-    const { payerWallet, txSignature } = body;
+    const { txSignature } = body;
 
-    if (!payerWallet || !txSignature) {
+    // Note: payerWallet intentionally NOT required or stored for privacy
+    if (!txSignature) {
       return NextResponse.json(
-        { error: "payerWallet and txSignature are required" },
+        { error: "txSignature is required" },
         { status: 400 }
       );
     }
@@ -118,11 +119,11 @@ export async function POST(
     }
 
     // Update invoice as paid
+    // Note: payerWallet NOT stored for privacy
     const updated = await prisma.invoice.update({
       where: { publicId },
       data: {
         status: "PAID",
-        payerWallet,
         txSignature,
         paidAt: new Date(),
       },
@@ -142,14 +143,14 @@ export async function POST(
 
     await logAudit({
       action: "INVOICE_PAID",
-      actorWallet: payerWallet,
+      actorWallet: null, // Privacy: payer wallet not logged
       organizationId: invoice.organization.id,
       resourceType: "invoice",
       resourceId: invoice.id,
       metadata: {
         amount: Number(invoice.amount),
-        payerWallet,
         txSignature,
+        // payerWallet intentionally NOT logged for privacy
       },
       success: true,
       ...auditContext,

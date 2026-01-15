@@ -316,7 +316,7 @@ export interface InvoiceExportData {
   description: string;
   dueDate: string | null;
   status: string;
-  payerWallet: string | null;
+  // payerWallet intentionally not stored for privacy
   paidAt: string | null;
   platformFee: number | null;
   createdAt: string;

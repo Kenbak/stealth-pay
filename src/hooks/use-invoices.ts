@@ -10,7 +10,7 @@ interface Invoice {
   description: string;
   dueDate: string | null;
   status: "PENDING" | "PAID" | "CANCELLED" | "EXPIRED";
-  payerWallet: string | null;
+  // payerWallet intentionally not stored for privacy
   paidAt: string | null;
   platformFee: number | null;
   createdAt: string;

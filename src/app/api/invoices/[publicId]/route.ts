@@ -84,6 +84,7 @@ export async function GET(
 
       if (isOwner) {
         // Return full details for owner
+        // Note: payerWallet NOT returned for privacy
         return NextResponse.json({
           invoice: {
             id: invoice.id,
@@ -93,7 +94,6 @@ export async function GET(
             description: invoice.description,
             dueDate: invoice.dueDate?.toISOString() || null,
             status: invoice.status,
-            payerWallet: invoice.payerWallet,
             txSignature: invoice.txSignature,
             paidAt: invoice.paidAt?.toISOString() || null,
             platformFee: invoice.platformFee ? Number(invoice.platformFee) : null,
