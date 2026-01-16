@@ -152,7 +152,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 <a
-                  href={`https://solscan.io/account/${publicKey.toBase58()}${!isMainnet ? "?cluster=devnet" : ""}`}
+                  href={`https://orbmarkets.io/address/${publicKey.toBase58()}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-amber-500 hover:underline"

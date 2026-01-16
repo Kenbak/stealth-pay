@@ -190,7 +190,7 @@ export function downloadPayrollsJSON(payrolls: PayrollExportData[], orgName?: st
 export interface PayrollPaymentExport {
   employeeId: string;
   employeeName: string;
-  walletAddress: string;
+  stealthPayWallet: string;
   amount: number;
   status: string;
 }
@@ -209,7 +209,7 @@ export function exportPayrollDetailToCSV(payroll: PayrollDetailExport): string {
     "Payroll ID",
     "Payroll Date",
     "Employee Name",
-    "Wallet Address",
+    "StealthPay Wallet",
     "Amount (USDC)",
     "Payment Status",
   ];
@@ -218,7 +218,7 @@ export function exportPayrollDetailToCSV(payroll: PayrollDetailExport): string {
     payroll.id,
     payroll.executedAt ? new Date(payroll.executedAt).toISOString() : new Date(payroll.createdAt).toISOString(),
     `"${payment.employeeName}"`, // Quote in case of commas
-    payment.walletAddress,
+    payment.stealthPayWallet,
     payment.amount.toFixed(2),
     payment.status,
   ].join(","));
@@ -264,7 +264,7 @@ export function exportPayrollDetailToJSON(payroll: PayrollDetailExport): string 
       payments: payroll.payments.map(payment => ({
         employeeId: payment.employeeId,
         employeeName: payment.employeeName,
-        walletAddress: payment.walletAddress,
+        stealthPayWallet: payment.stealthPayWallet,
         amount: payment.amount,
         status: payment.status,
       })),
@@ -466,4 +466,242 @@ export function downloadInvoiceDetailCSV(invoice: InvoiceExportData, orgName?: s
     ? `${orgName.toLowerCase().replace(/\s+/g, "-")}-invoice-${invoice.publicId}.csv`
     : `invoice-${invoice.publicId}.csv`;
   downloadFile(csv, filename, "text/csv");
+}
+
+// ============================================
+// EMPLOYEE EXPORTS (Payments & Withdrawals)
+// ============================================
+
+export interface EmployeePaymentExport {
+  id: string;
+  organizationName: string;
+  amount: number;
+  status: string;
+  date: string;
+  txSignature?: string;
+}
+
+export interface EmployeeWithdrawalExport {
+  id: string;
+  organizationName: string;
+  amount: number;
+  feeAmount: number;
+  netReceived: number;
+  mode: "PRIVATE" | "PUBLIC";
+  status: string;
+  recipient: string;
+  date: string;
+  txSignature?: string;
+}
+
+/**
+ * Export employee payments to CSV (for tax purposes)
+ */
+export function exportEmployeePaymentsToCSV(
+  payments: EmployeePaymentExport[],
+  year?: number
+): string {
+  const filteredPayments = year
+    ? payments.filter(p => new Date(p.date).getFullYear() === year)
+    : payments;
+
+  const headers = [
+    "Date",
+    "Organization",
+    "Gross Amount (USDC)",
+    "Status",
+    "Transaction",
+  ];
+
+  const rows = filteredPayments.map(payment => [
+    new Date(payment.date).toISOString().split("T")[0],
+    `"${payment.organizationName}"`,
+    payment.amount.toFixed(2),
+    payment.status,
+    payment.txSignature || "N/A",
+  ].join(","));
+
+  // Summary
+  const totalReceived = filteredPayments
+    .filter(p => p.status === "COMPLETED")
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  const summaryRows = [
+    "",
+    "SUMMARY",
+    `Year,${year || "All Time"}`,
+    `Total Payments,${filteredPayments.length}`,
+    `Total Received,${totalReceived.toFixed(2)} USDC`,
+  ];
+
+  return [headers.join(","), ...rows, ...summaryRows].join("\n");
+}
+
+/**
+ * Export employee withdrawals to CSV
+ */
+export function exportEmployeeWithdrawalsToCSV(
+  withdrawals: EmployeeWithdrawalExport[],
+  year?: number
+): string {
+  const filteredWithdrawals = year
+    ? withdrawals.filter(w => new Date(w.date).getFullYear() === year)
+    : withdrawals;
+
+  const headers = [
+    "Date",
+    "Organization",
+    "Gross Amount (USDC)",
+    "Fee (USDC)",
+    "Net Received (USDC)",
+    "Mode",
+    "Status",
+    "To Wallet",
+    "Transaction",
+  ];
+
+  const rows = filteredWithdrawals.map(w => [
+    new Date(w.date).toISOString().split("T")[0],
+    `"${w.organizationName}"`,
+    w.amount.toFixed(2),
+    w.feeAmount.toFixed(2),
+    w.netReceived.toFixed(2),
+    w.mode,
+    w.status,
+    w.recipient,
+    w.txSignature || "N/A",
+  ].join(","));
+
+  // Summary
+  const completedWithdrawals = filteredWithdrawals.filter(w => w.status === "COMPLETED");
+  const totalWithdrawn = completedWithdrawals.reduce((sum, w) => sum + w.amount, 0);
+  const totalFees = completedWithdrawals.reduce((sum, w) => sum + w.feeAmount, 0);
+  const totalNet = completedWithdrawals.reduce((sum, w) => sum + w.netReceived, 0);
+
+  const summaryRows = [
+    "",
+    "SUMMARY",
+    `Year,${year || "All Time"}`,
+    `Total Withdrawals,${filteredWithdrawals.length}`,
+    `Gross Withdrawn,${totalWithdrawn.toFixed(2)} USDC`,
+    `Total Fees,${totalFees.toFixed(2)} USDC`,
+    `Net Received,${totalNet.toFixed(2)} USDC`,
+    `Private Withdrawals,${completedWithdrawals.filter(w => w.mode === "PRIVATE").length}`,
+    `Public Withdrawals,${completedWithdrawals.filter(w => w.mode === "PUBLIC").length}`,
+  ];
+
+  return [headers.join(","), ...rows, ...summaryRows].join("\n");
+}
+
+/**
+ * Export employee income report to JSON (comprehensive tax report)
+ */
+export function exportEmployeeIncomeReportToJSON(
+  payments: EmployeePaymentExport[],
+  withdrawals: EmployeeWithdrawalExport[],
+  year?: number
+): string {
+  const filterByYear = (date: string) =>
+    !year || new Date(date).getFullYear() === year;
+
+  const filteredPayments = payments.filter(p => filterByYear(p.date));
+  const filteredWithdrawals = withdrawals.filter(w => filterByYear(w.date));
+
+  const completedPayments = filteredPayments.filter(p => p.status === "COMPLETED");
+  const completedWithdrawals = filteredWithdrawals.filter(w => w.status === "COMPLETED");
+
+  const totalIncome = completedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalWithdrawn = completedWithdrawals.reduce((sum, w) => sum + w.amount, 0);
+  const totalFees = completedWithdrawals.reduce((sum, w) => sum + w.feeAmount, 0);
+
+  const report = {
+    exportedAt: new Date().toISOString(),
+    reportPeriod: year ? `${year}` : "All Time",
+
+    summary: {
+      totalIncomeReceived: totalIncome,
+      totalWithdrawn: totalWithdrawn,
+      totalFeesPaid: totalFees,
+      netReceived: totalWithdrawn - totalFees,
+      paymentCount: completedPayments.length,
+      withdrawalCount: completedWithdrawals.length,
+      currency: "USDC",
+    },
+
+    incomeByOrganization: Object.entries(
+      completedPayments.reduce((acc, p) => {
+        acc[p.organizationName] = (acc[p.organizationName] || 0) + p.amount;
+        return acc;
+      }, {} as Record<string, number>)
+    ).map(([org, total]) => ({ organization: org, total })),
+
+    monthlyBreakdown: Object.entries(
+      completedPayments.reduce((acc, p) => {
+        const month = new Date(p.date).toISOString().slice(0, 7); // YYYY-MM
+        acc[month] = (acc[month] || 0) + p.amount;
+        return acc;
+      }, {} as Record<string, number>)
+    ).map(([month, total]) => ({ month, income: total })).sort((a, b) => a.month.localeCompare(b.month)),
+
+    payments: filteredPayments.map(p => ({
+      date: p.date,
+      organization: p.organizationName,
+      amount: p.amount,
+      status: p.status,
+    })),
+
+    withdrawals: filteredWithdrawals.map(w => ({
+      date: w.date,
+      organization: w.organizationName,
+      grossAmount: w.amount,
+      fee: w.feeAmount,
+      netReceived: w.netReceived,
+      mode: w.mode,
+      status: w.status,
+    })),
+
+    taxNote: "This report is for informational purposes only. Consult a tax professional for official tax filing.",
+  };
+
+  return JSON.stringify(report, null, 2);
+}
+
+/**
+ * Download employee payments CSV
+ */
+export function downloadEmployeePaymentsCSV(
+  payments: EmployeePaymentExport[],
+  year?: number
+) {
+  const csv = exportEmployeePaymentsToCSV(payments, year);
+  const date = new Date().toISOString().split("T")[0];
+  const yearStr = year ? `-${year}` : "";
+  downloadFile(csv, `stealthpay-payments${yearStr}-${date}.csv`, "text/csv");
+}
+
+/**
+ * Download employee withdrawals CSV
+ */
+export function downloadEmployeeWithdrawalsCSV(
+  withdrawals: EmployeeWithdrawalExport[],
+  year?: number
+) {
+  const csv = exportEmployeeWithdrawalsToCSV(withdrawals, year);
+  const date = new Date().toISOString().split("T")[0];
+  const yearStr = year ? `-${year}` : "";
+  downloadFile(csv, `stealthpay-withdrawals${yearStr}-${date}.csv`, "text/csv");
+}
+
+/**
+ * Download employee income report JSON
+ */
+export function downloadEmployeeIncomeReportJSON(
+  payments: EmployeePaymentExport[],
+  withdrawals: EmployeeWithdrawalExport[],
+  year?: number
+) {
+  const json = exportEmployeeIncomeReportToJSON(payments, withdrawals, year);
+  const date = new Date().toISOString().split("T")[0];
+  const yearStr = year ? `-${year}` : "";
+  downloadFile(json, `stealthpay-income-report${yearStr}-${date}.json`, "application/json");
 }

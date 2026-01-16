@@ -10,7 +10,7 @@ interface PreparedPayment {
   paymentId: string;
   employeeId: string;
   employeeName: string;
-  walletAddress: string;
+  stealthPayWallet: string;
   amount: number;
 }
 
@@ -115,12 +115,12 @@ export function usePayrollExecution() {
       console.log("[PAYROLL] Token detection:", {
         tokenMint: preparedData.tokenMint,
         detectedToken: token,
-        payments: preparedData.payments.map(p => ({ recipient: p.walletAddress.slice(0, 8) + "...", amount: p.amount })),
+        payments: preparedData.payments.map(p => ({ recipient: p.stealthPayWallet.slice(0, 8) + "...", amount: p.amount })),
       });
 
       // Map to ShadowWire SDK format
       const shadowWirePayments = preparedData.payments.map((p) => ({
-        recipient: p.walletAddress,
+        recipient: p.stealthPayWallet,
         amount: p.amount,
         token,
       }));

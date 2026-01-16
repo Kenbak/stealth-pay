@@ -63,7 +63,8 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  payments Payment[]
+  payments    Payment[]
+  withdrawals Withdrawal[]
 
   @@index([inviteCode])
   @@index([mainWalletHash])
@@ -228,6 +229,47 @@ enum InvoiceStatus {
   PAID
   CANCELLED
   EXPIRED
+}
+
+// ============================================
+// EMPLOYEE WITHDRAWALS (Withdrawal history)
+// ============================================
+
+model Withdrawal {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  // Amounts
+  amount       Decimal @db.Decimal(18, 6) // Amount withdrawn
+  feeAmount    Decimal @db.Decimal(18, 6) // Fee paid (Privacy Cash or gas)
+
+  // Transaction details
+  mode         WithdrawMode // private or public
+  txSignature  String?      // On-chain signature
+  recipient    String       // Destination wallet (NOT stored in DB for privacy? or store hash?)
+
+  // Status
+  status       WithdrawStatus @default(PENDING)
+
+  createdAt    DateTime @default(now())
+  completedAt  DateTime?
+
+  @@index([employeeId])
+  @@index([createdAt])
+  @@map("withdrawals")
+}
+
+enum WithdrawMode {
+  PRIVATE  // Via Privacy Cash
+  PUBLIC   // Direct SPL transfer
+}
+
+enum WithdrawStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 // ============================================

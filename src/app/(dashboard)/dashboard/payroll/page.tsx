@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  AlertTriangle,
   Calendar,
   CheckCircle2,
   ChevronDown,
@@ -33,6 +34,7 @@ import {
   Play,
   Plus,
   Shield,
+  Trash2,
   Users,
   Wallet,
   X,
@@ -105,6 +107,8 @@ export default function PayrollPage() {
     completedPayrolls,
     refetch,
     getPayrollDetail,
+    cancelPayroll,
+    isCancelling,
   } = usePayrolls();
 
   const { activeEmployees, isLoading: employeesLoading } = useEmployees();
@@ -128,6 +132,9 @@ export default function PayrollPage() {
   // Detail modal
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Cancel confirmation
+  const [payrollToCancel, setPayrollToCancel] = useState<Payroll | PayrollDetail | null>(null);
 
   // Initialize with all active employees when modal opens
   const handleOpenCreate = () => {
@@ -377,14 +384,25 @@ export default function PayrollPage() {
                           </p>
                         </div>
 
-                        <Button
-                          onClick={() => handleExecute(payroll)}
-                          disabled={isExecuting}
-                          className="bg-amber-600 hover:bg-amber-700"
-                        >
-                          <Play className="h-4 w-4 mr-2" />
-                          Execute
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPayrollToCancel(payroll)}
+                            disabled={isCancelling}
+                            className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleExecute(payroll)}
+                            disabled={isExecuting}
+                            className="bg-amber-600 hover:bg-amber-700"
+                          >
+                            <Play className="h-4 w-4 mr-2" />
+                            Execute
+                          </Button>
+                        </div>
                       </div>
                     );
                   })()}
@@ -924,7 +942,7 @@ export default function PayrollPage() {
                           <div>
                             <p className="font-medium">{payment.employee.name}</p>
                             <p className="text-xs text-muted-foreground font-mono">
-                              {payment.employee.walletAddress.slice(0, 4)}...{payment.employee.walletAddress.slice(-4)}
+                              {payment.employee.stealthPayWallet ? `${payment.employee.stealthPayWallet.slice(0, 4)}...${payment.employee.stealthPayWallet.slice(-4)}` : "Not registered"}
                             </p>
                           </div>
                         </div>
@@ -966,7 +984,7 @@ export default function PayrollPage() {
                           payments: selectedPayroll.payments.map(p => ({
                             employeeId: p.employeeId,
                             employeeName: p.employee.name,
-                            walletAddress: p.employee.walletAddress,
+                            stealthPayWallet: p.employee.stealthPayWallet || "Not registered",
                             amount: p.amount,
                             status: p.status,
                           })),
@@ -982,7 +1000,7 @@ export default function PayrollPage() {
                           payments: selectedPayroll.payments.map(p => ({
                             employeeId: p.employeeId,
                             employeeName: p.employee.name,
-                            walletAddress: p.employee.walletAddress,
+                            stealthPayWallet: p.employee.stealthPayWallet || "Not registered",
                             amount: p.amount,
                             status: p.status,
                           })),
@@ -994,12 +1012,114 @@ export default function PayrollPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button variant="outline" onClick={() => setSelectedPayroll(null)}>
-                    Close
-                  </Button>
+                  <div className="flex gap-2">
+                    {selectedPayroll.status === "PENDING" && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setPayrollToCancel(selectedPayroll);
+                          }}
+                          disabled={isCancelling}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Cancel Payroll
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedPayroll(null);
+                            handleExecute(selectedPayroll);
+                          }}
+                          disabled={isExecuting}
+                          className="bg-amber-600 hover:bg-amber-700"
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          Execute
+                        </Button>
+                      </>
+                    )}
+                    {selectedPayroll.status !== "PENDING" && (
+                      <Button variant="outline" onClick={() => setSelectedPayroll(null)}>
+                        Close
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirmation Modal */}
+      {payrollToCancel && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm animate-in fade-in-0 duration-200"
+            onClick={() => !isCancelling && setPayrollToCancel(null)}
+          />
+
+          {/* Modal */}
+          <div className="relative z-50 w-full max-w-md glass border-white/10 rounded-2xl shadow-2xl animate-in fade-in-0 zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center gap-3 p-6 border-b border-white/10">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Cancel Payroll</h2>
+                <p className="text-sm text-muted-foreground">This action cannot be undone</p>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <p className="text-muted-foreground">
+                Are you sure you want to cancel this payroll of{" "}
+                <strong className="text-foreground">{formatCurrency(payrollToCancel.totalAmount)}</strong>{" "}
+                for{" "}
+                <strong className="text-foreground">
+                  {payrollToCancel.employeeCount} employee{payrollToCancel.employeeCount !== 1 ? "s" : ""}
+                </strong>?
+              </p>
+              <p className="text-sm text-muted-foreground">
+                No payments have been made yet. You can create a new payroll at any time.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-2 p-6 border-t border-white/10">
+              <Button
+                variant="outline"
+                onClick={() => setPayrollToCancel(null)}
+                disabled={isCancelling}
+              >
+                Keep Payroll
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  cancelPayroll(payrollToCancel.id);
+                  setPayrollToCancel(null);
+                  setSelectedPayroll(null);
+                }}
+                disabled={isCancelling}
+              >
+                {isCancelling ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Cancel Payroll
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -940,7 +940,7 @@ export default function TreasuryPage() {
                             </p>
                           </div>
                           <a
-                            href={`https://solscan.io/tx/${tx.signature}${!isMainnet ? "?cluster=devnet" : ""}`}
+                            href={`https://orbmarkets.io/tx/${tx.signature}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-amber-500 hover:text-amber-600"

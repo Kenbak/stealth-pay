@@ -48,9 +48,9 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // Tailwind + Google Fonts
               "img-src 'self' data: https:",
               "font-src 'self' data: https://fonts.gstatic.com",
-              // Connect to: Solana RPCs, Jupiter (prices + swap), Helius, Supabase, Radr ShadowPay
+              // Connect to: Solana RPCs, Jupiter (prices + swap), Helius, Supabase, Radr ShadowPay, Privacy Cash
               // Note: wss://*.helius-rpc.com needed for transaction confirmation
-              "connect-src 'self' https://*.solana.com https://*.quicknode.com https://*.helius-rpc.com https://api.helius.xyz https://api.jup.ag https://quote-api.jup.ag https://*.supabase.co https://shadow.radr.fun https://*.radr.fun wss://*.solana.com wss://*.helius-rpc.com",
+              "connect-src 'self' https://*.solana.com https://*.quicknode.com https://*.helius-rpc.com https://api.helius.xyz https://api.jup.ag https://quote-api.jup.ag https://*.supabase.co https://shadow.radr.fun https://*.radr.fun https://*.privacy.cash https://privacy.cash wss://*.solana.com wss://*.helius-rpc.com",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
@@ -65,6 +65,12 @@ const nextConfig = {
       },
     ];
   },
+
+  // Externalize packages that don't work well with Next.js bundling (server-only packages)
+  serverExternalPackages: [
+    "privacycash",
+    "@lightprotocol/hasher.rs",
+  ],
 
   // Webpack config for Solana
   webpack: (config) => {

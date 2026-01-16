@@ -367,3 +367,30 @@ export function isHeliusConfigured(): boolean {
 export function getHeliusNetwork(): string {
   return NETWORK;
 }
+
+/**
+ * Get the best available RPC URL
+ * Uses Helius if configured, otherwise falls back to env or public RPC
+ */
+export function getRpcUrl(): string {
+  if (HELIUS_API_KEY) {
+    return getHeliusRpcUrl();
+  }
+  return process.env.SOLANA_RPC_URL || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+}
+
+/**
+ * Orb Explorer URL utilities
+ * @see https://orbmarkets.io
+ */
+export function getExplorerTxUrl(signature: string): string {
+  return `https://orbmarkets.io/tx/${signature}`;
+}
+
+export function getExplorerAddressUrl(address: string): string {
+  return `https://orbmarkets.io/address/${address}`;
+}
+
+export function getExplorerTokenUrl(mint: string): string {
+  return `https://orbmarkets.io/token/${mint}`;
+}

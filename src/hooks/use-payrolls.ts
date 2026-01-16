@@ -14,7 +14,7 @@ export interface PayrollPayment {
   employee: {
     id: string;
     name: string;
-    walletAddress: string;
+    stealthPayWallet: string | null;
   };
 }
 

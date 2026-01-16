@@ -239,7 +239,7 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
             </p>
             {txSignature !== "success" && (
               <a
-                href={`https://solscan.io/tx/${txSignature}?cluster=devnet`}
+                href={`https://orbmarkets.io/tx/${txSignature}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm"
