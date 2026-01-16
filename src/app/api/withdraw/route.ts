@@ -200,6 +200,29 @@ export async function POST(request: NextRequest) {
       const { getRpcUrl } = await import("@/lib/helius");
       const connection = new Connection(getRpcUrl(), "confirmed");
 
+      // Check if StealthPay wallet has enough SOL for gas, sponsor if needed
+      const solBalance = await connection.getBalance(stealthPayKeypair.publicKey);
+      const MIN_SOL_FOR_GAS = 5_000_000; // 0.005 SOL (enough for ATA creation + transfer)
+      
+      if (solBalance < MIN_SOL_FOR_GAS) {
+        console.log(`[Withdraw] StealthPay wallet needs gas. Balance: ${solBalance} lamports, sponsoring...`);
+        
+        // Sponsor gas from admin wallet
+        const sponsorResult = await privacyCashClient.sponsorGas(stealthPayKeypair.publicKey, 5_000_000);
+        
+        if (!sponsorResult.success) {
+          return NextResponse.json(
+            { error: `Failed to sponsor gas: ${sponsorResult.error}` },
+            { status: 500 }
+          );
+        }
+        
+        console.log(`[Withdraw] Gas sponsored successfully: ${sponsorResult.signature}`);
+        
+        // Wait for confirmation
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
       // USDC Mint
       const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 

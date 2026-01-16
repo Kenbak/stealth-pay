@@ -357,7 +357,7 @@ export async function getTransactionHistory(
 /**
  * Simulate a transaction before sending
  * Returns success/failure and any error messages
- * 
+ *
  * @see https://docs.helius.dev/solana-rpc-nodes/sending-transactions
  */
 export interface SimulationResult {
@@ -372,7 +372,7 @@ export async function simulateTransaction(
   options?: { sigVerify?: boolean }
 ): Promise<SimulationResult> {
   const rpcUrl = getRpcUrl();
-  
+
   try {
     const response = await fetch(rpcUrl, {
       method: "POST",
@@ -408,7 +408,7 @@ export async function simulateTransaction(
     if (result?.err) {
       // Parse the error for better messages
       let errorMessage = "Transaction would fail";
-      
+
       if (typeof result.err === "object") {
         if (result.err.InstructionError) {
           const [index, error] = result.err.InstructionError;
@@ -470,7 +470,7 @@ export async function simulateTransactionEnhanced(
 ): Promise<EnhancedSimulationResult> {
   // First do basic simulation
   const basicResult = await simulateTransaction(transaction);
-  
+
   if (!basicResult.success) {
     return basicResult;
   }

@@ -281,26 +281,26 @@ export function useShadowWire() {
       // 🔍 SIMULATE TRANSACTIONS BEFORE SIGNING
       // This prevents Phantom warnings and catches errors early
       console.log('[DEPOSIT] Simulating transactions before signing...');
-      
+
       for (let i = 0; i < transactionsToSign.length; i++) {
         const tx = transactionsToSign[i];
         const txName = i === 0 && feeTx ? 'Fee transaction' : 'Deposit transaction';
-        
+
         try {
           // Serialize transaction for simulation (without signatures)
-          const serialized = tx.serialize({ 
+          const serialized = tx.serialize({
             requireAllSignatures: false,
-            verifySignatures: false 
+            verifySignatures: false
           });
           const base64Tx = serialized.toString('base64');
-          
+
           const simResult = await simulateTransaction(base64Tx);
-          
+
           if (!simResult.success) {
             console.error(`[DEPOSIT] ${txName} simulation failed:`, simResult.error);
             throw new Error(`${txName} would fail: ${simResult.error}`);
           }
-          
+
           console.log(`[DEPOSIT] ${txName} simulation successful, units: ${simResult.unitsConsumed}`);
         } catch (simError: any) {
           // If it's our error, rethrow
@@ -445,19 +445,19 @@ export function useShadowWire() {
       // 🔍 SIMULATE BEFORE SIGNING
       console.log('[WITHDRAW] Simulating transaction before signing...');
       try {
-        const serialized = tx.serialize({ 
+        const serialized = tx.serialize({
           requireAllSignatures: false,
-          verifySignatures: false 
+          verifySignatures: false
         });
         const base64Tx = serialized.toString('base64');
-        
+
         const simResult = await simulateTransaction(base64Tx);
-        
+
         if (!simResult.success) {
           console.error('[WITHDRAW] Simulation failed:', simResult.error);
           throw new Error(`Withdrawal would fail: ${simResult.error}`);
         }
-        
+
         console.log('[WITHDRAW] Simulation successful, units:', simResult.unitsConsumed);
       } catch (simError: any) {
         if (simError.message?.includes('would fail')) {
