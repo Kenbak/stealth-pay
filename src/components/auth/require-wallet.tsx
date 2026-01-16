@@ -99,22 +99,6 @@ export function RequireWallet({ children }: RequireWalletProps) {
               Connect Wallet
             </Button>
 
-            {/* Wallet options hint */}
-            <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <span className="w-4 h-4 rounded bg-gradient-to-br from-purple-500 to-purple-600" />
-                Phantom
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-4 h-4 rounded bg-gradient-to-br from-orange-500 to-orange-600" />
-                Solflare
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-4 h-4 rounded bg-gradient-to-br from-gray-600 to-gray-700" />
-                Ledger
-              </span>
-              <span>+ more</span>
-            </div>
           </div>
 
           {/* Benefits */}
@@ -125,7 +109,7 @@ export function RequireWallet({ children }: RequireWalletProps) {
             </div>
             <ul className="space-y-2">
               {[
-                "Your wallet is your identity—no passwords needed",
+                "Your wallet is your identity, no passwords needed",
                 "One-click sign in across all your devices",
                 "All data encrypted with your unique key",
               ].map((benefit, i) => (
@@ -146,7 +130,7 @@ export function RequireWallet({ children }: RequireWalletProps) {
                   Your Security Matters
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  We never access your private keys. You&apos;ll sign a message to prove wallet ownership—no transaction fees, no risk.
+                  We never access your private keys. You&apos;ll sign a message to prove wallet ownership, no transaction fees, no risk.
                 </p>
               </div>
             </div>

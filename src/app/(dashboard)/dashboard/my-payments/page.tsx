@@ -734,7 +734,7 @@ export default function MyPaymentsPage() {
             <div>
               <h3 className="font-semibold text-sm mb-1">Complete Privacy Protection</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Your employer only sees your StealthPay wallet — a temporary receiving address derived from your main wallet.
+                Your employer only sees your StealthPay wallet, a temporary receiving address derived from your main wallet.
                 When you withdraw via Privacy Cash, the on-chain link between StealthPay and your real wallet is completely broken.
                 <span className="text-teal-500 font-medium"> Your balance and transactions stay private.</span>
               </p>
