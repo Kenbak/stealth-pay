@@ -705,3 +705,286 @@ export function downloadEmployeeIncomeReportJSON(
   const yearStr = year ? `-${year}` : "";
   downloadFile(json, `stealthpay-income-report${yearStr}-${date}.json`, "application/json");
 }
+
+// ============================================
+// TREASURY ACTIVITY EXPORTS (For Organizations)
+// ============================================
+
+export interface TreasuryTransactionExport {
+  id: string;
+  type: "DEPOSIT" | "WITHDRAW" | "PAYROLL_OUT" | "INVOICE_IN";
+  amount: number;
+  tokenMint: string;
+  txHash: string;
+  payrollId?: string;
+  feeAmount?: number;
+  feeTxHash?: string;
+  createdAt: string;
+}
+
+export interface TreasuryActivityExport {
+  organizationName: string;
+  organizationWallet: string;
+  period: {
+    from: string;
+    to: string;
+  };
+  transactions: TreasuryTransactionExport[];
+}
+
+/**
+ * Export treasury activity to CSV
+ */
+export function exportTreasuryActivityToCSV(data: TreasuryActivityExport): string {
+  const headers = [
+    "Date",
+    "Type",
+    "Amount (USDC)",
+    "Fee (USDC)",
+    "Net Amount (USDC)",
+    "Transaction Hash",
+    "Fee Transaction",
+    "Related Payroll",
+    "Verify URL",
+  ];
+
+  const rows = data.transactions.map(tx => {
+    const fee = tx.feeAmount || 0;
+    const netAmount = tx.type === "DEPOSIT" || tx.type === "INVOICE_IN"
+      ? tx.amount - fee  // Inflows: subtract fee
+      : tx.amount + fee; // Outflows: add fee to get total cost
+    
+    return [
+      new Date(tx.createdAt).toISOString(),
+      tx.type,
+      tx.amount.toFixed(2),
+      fee.toFixed(2),
+      netAmount.toFixed(2),
+      tx.txHash,
+      tx.feeTxHash || "",
+      tx.payrollId || "",
+      `https://orbmarkets.io/tx/${tx.txHash}`,
+    ].join(",");
+  });
+
+  // Calculate totals
+  const deposits = data.transactions.filter(t => t.type === "DEPOSIT" || t.type === "INVOICE_IN");
+  const outflows = data.transactions.filter(t => t.type === "WITHDRAW" || t.type === "PAYROLL_OUT");
+  
+  const totalDeposits = deposits.reduce((sum, t) => sum + t.amount, 0);
+  const totalOutflows = outflows.reduce((sum, t) => sum + t.amount, 0);
+  const totalFees = data.transactions.reduce((sum, t) => sum + (t.feeAmount || 0), 0);
+
+  const summaryRows = [
+    "",
+    "TREASURY SUMMARY",
+    `Organization,${data.organizationName}`,
+    `Wallet,${data.organizationWallet}`,
+    `Period,${data.period.from} to ${data.period.to}`,
+    "",
+    `Total Deposits,${totalDeposits.toFixed(2)} USDC`,
+    `Total Outflows,${totalOutflows.toFixed(2)} USDC`,
+    `Total Fees Paid,${totalFees.toFixed(2)} USDC`,
+    `Net Change,${(totalDeposits - totalOutflows).toFixed(2)} USDC`,
+  ];
+
+  return [headers.join(","), ...rows, ...summaryRows].join("\n");
+}
+
+/**
+ * Export treasury activity to JSON (comprehensive audit report)
+ */
+export function exportTreasuryActivityToJSON(data: TreasuryActivityExport): string {
+  const deposits = data.transactions.filter(t => t.type === "DEPOSIT");
+  const invoiceIns = data.transactions.filter(t => t.type === "INVOICE_IN");
+  const payrollOuts = data.transactions.filter(t => t.type === "PAYROLL_OUT");
+  const withdrawals = data.transactions.filter(t => t.type === "WITHDRAW");
+
+  const report = {
+    exportedAt: new Date().toISOString(),
+    
+    organization: {
+      name: data.organizationName,
+      wallet: data.organizationWallet,
+    },
+    
+    period: data.period,
+    
+    summary: {
+      totalDeposits: deposits.reduce((sum, t) => sum + t.amount, 0),
+      totalInvoiceIncome: invoiceIns.reduce((sum, t) => sum + t.amount, 0),
+      totalPayrollOutflows: payrollOuts.reduce((sum, t) => sum + t.amount, 0),
+      totalWithdrawals: withdrawals.reduce((sum, t) => sum + t.amount, 0),
+      totalFeesPaid: data.transactions.reduce((sum, t) => sum + (t.feeAmount || 0), 0),
+      transactionCount: data.transactions.length,
+      currency: "USDC",
+    },
+    
+    activity: {
+      deposits: deposits.map(tx => ({
+        date: tx.createdAt,
+        amount: tx.amount,
+        fee: tx.feeAmount || 0,
+        txHash: tx.txHash,
+        verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
+      })),
+      
+      invoiceIncome: invoiceIns.map(tx => ({
+        date: tx.createdAt,
+        amount: tx.amount,
+        fee: tx.feeAmount || 0,
+        txHash: tx.txHash,
+        verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
+      })),
+      
+      payrollOutflows: payrollOuts.map(tx => ({
+        date: tx.createdAt,
+        amount: tx.amount,
+        fee: tx.feeAmount || 0,
+        payrollId: tx.payrollId,
+        txHash: tx.txHash,
+        verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
+      })),
+      
+      withdrawals: withdrawals.map(tx => ({
+        date: tx.createdAt,
+        amount: tx.amount,
+        txHash: tx.txHash,
+        verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
+      })),
+    },
+    
+    auditNote: "All transaction hashes can be verified on-chain at the provided URLs.",
+  };
+
+  return JSON.stringify(report, null, 2);
+}
+
+/**
+ * Download treasury activity as CSV
+ */
+export function downloadTreasuryActivityCSV(data: TreasuryActivityExport, orgName?: string) {
+  const csv = exportTreasuryActivityToCSV(data);
+  const date = new Date().toISOString().split("T")[0];
+  const filename = orgName
+    ? `${orgName.toLowerCase().replace(/\s+/g, "-")}-treasury-activity-${date}.csv`
+    : `treasury-activity-${date}.csv`;
+  downloadFile(csv, filename, "text/csv");
+}
+
+/**
+ * Download treasury activity as JSON
+ */
+export function downloadTreasuryActivityJSON(data: TreasuryActivityExport, orgName?: string) {
+  const json = exportTreasuryActivityToJSON(data);
+  const date = new Date().toISOString().split("T")[0];
+  const filename = orgName
+    ? `${orgName.toLowerCase().replace(/\s+/g, "-")}-treasury-activity-${date}.json`
+    : `treasury-activity-${date}.json`;
+  downloadFile(json, filename, "application/json");
+}
+
+// ============================================
+// ENHANCED PAYROLL EXPORTS (With Audit Trail)
+// ============================================
+
+export interface PayrollPaymentWithAudit extends PayrollPaymentExport {
+  txSignature?: string;
+  proofPda?: string;
+}
+
+export interface PayrollDetailWithAudit extends PayrollExportData {
+  depositTxHash?: string;
+  payments: PayrollPaymentWithAudit[];
+}
+
+/**
+ * Export detailed payroll with full audit trail to JSON
+ */
+export function exportPayrollDetailWithAuditToJSON(
+  payroll: PayrollDetailWithAudit,
+  orgName?: string,
+  orgWallet?: string
+): string {
+  const fees = calculatePayrollFees(payroll.totalAmount);
+
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    
+    organization: orgName ? {
+      name: orgName,
+      wallet: orgWallet,
+    } : undefined,
+    
+    payroll: {
+      id: payroll.id,
+      status: payroll.status,
+      
+      dates: {
+        createdAt: payroll.createdAt,
+        scheduledDate: payroll.scheduledDate,
+        executedAt: payroll.executedAt,
+      },
+      
+      financials: {
+        totalSalaries: fees.salaries,
+        stealthPayFee: fees.stealthFee,
+        stealthPayFeeRate: `${fees.stealthFeeRate}%`,
+        relayerFee: fees.shadowwireFee,
+        relayerFeeRate: `${fees.shadowwireFeeRate}%`,
+        totalCost: fees.totalCost,
+        currency: "USDC",
+      },
+      
+      auditTrail: {
+        depositTxHash: payroll.depositTxHash,
+        depositVerifyUrl: payroll.depositTxHash 
+          ? `https://orbmarkets.io/tx/${payroll.depositTxHash}` 
+          : null,
+      },
+      
+      payments: payroll.payments.map(payment => ({
+        employeeId: payment.employeeId,
+        employeeName: payment.employeeName,
+        stealthPayWallet: payment.stealthPayWallet,
+        amount: payment.amount,
+        status: payment.status,
+        
+        // Audit trail for each payment
+        audit: {
+          txSignature: payment.txSignature,
+          proofPda: payment.proofPda,
+          verifyUrl: payment.txSignature 
+            ? `https://orbmarkets.io/tx/${payment.txSignature}` 
+            : null,
+        },
+      })),
+    },
+    
+    compliance: {
+      note: "This payroll was executed using StealthPay privacy infrastructure.",
+      privacyMethod: "ShadowWire ZK Transfers",
+      auditNote: "All transaction signatures can be verified on the Solana blockchain.",
+    },
+  };
+
+  return JSON.stringify(exportData, null, 2);
+}
+
+/**
+ * Download payroll detail with audit trail as JSON
+ */
+export function downloadPayrollDetailWithAuditJSON(
+  payroll: PayrollDetailWithAudit,
+  orgName?: string,
+  orgWallet?: string
+) {
+  const json = exportPayrollDetailWithAuditToJSON(payroll, orgName, orgWallet);
+  const date = payroll.executedAt
+    ? new Date(payroll.executedAt).toISOString().split("T")[0]
+    : new Date(payroll.createdAt).toISOString().split("T")[0];
+  const filename = orgName
+    ? `${orgName.toLowerCase().replace(/\s+/g, "-")}-payroll-${date}-audit.json`
+    : `payroll-${date}-audit.json`;
+  downloadFile(json, filename, "application/json");
+}

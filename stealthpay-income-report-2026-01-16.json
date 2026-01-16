@@ -1,0 +1,35 @@
+{
+  "exportedAt": "2026-01-16T14:04:05.418Z",
+  "reportPeriod": "All Time",
+  "summary": {
+    "totalIncomeReceived": 7,
+    "totalWithdrawn": 0,
+    "totalFeesPaid": 0,
+    "netReceived": 0,
+    "paymentCount": 1,
+    "withdrawalCount": 0,
+    "currency": "USDC"
+  },
+  "incomeByOrganization": [
+    {
+      "organization": "ACME DAO",
+      "total": 7
+    }
+  ],
+  "monthlyBreakdown": [
+    {
+      "month": "2026-01",
+      "income": 7
+    }
+  ],
+  "payments": [
+    {
+      "date": "2026-01-16T13:42:55.137Z",
+      "organization": "ACME DAO",
+      "amount": 7,
+      "status": "COMPLETED"
+    }
+  ],
+  "withdrawals": [],
+  "taxNote": "This report is for informational purposes only. Consult a tax professional for official tax filing."
+}

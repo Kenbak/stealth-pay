@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
 
       // Build transaction with ADMIN as fee payer
       const transaction = new Transaction();
-      
+
       // Get latest blockhash
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       transaction.recentBlockhash = blockhash;
@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
 
       // Send transaction
       const signature = await connection.sendRawTransaction(transaction.serialize());
-      
+
       await connection.confirmTransaction({
         signature,
         blockhash,
