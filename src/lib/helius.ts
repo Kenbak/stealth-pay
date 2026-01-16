@@ -355,6 +355,132 @@ export async function getTransactionHistory(
 }
 
 /**
+ * Simulate a transaction before sending
+ * Returns success/failure and any error messages
+ * 
+ * @see https://docs.helius.dev/solana-rpc-nodes/sending-transactions
+ */
+export interface SimulationResult {
+  success: boolean;
+  error?: string;
+  logs?: string[];
+  unitsConsumed?: number;
+}
+
+export async function simulateTransaction(
+  transaction: string, // Base64 encoded transaction
+  options?: { sigVerify?: boolean }
+): Promise<SimulationResult> {
+  const rpcUrl = getRpcUrl();
+  
+  try {
+    const response = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "simulate-tx",
+        method: "simulateTransaction",
+        params: [
+          transaction,
+          {
+            encoding: "base64",
+            sigVerify: options?.sigVerify ?? false,
+            replaceRecentBlockhash: true,
+            commitment: "confirmed",
+          },
+        ],
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      console.error("[HELIUS] Simulation RPC error:", data.error);
+      return {
+        success: false,
+        error: data.error.message || "RPC error",
+      };
+    }
+
+    const result = data.result?.value;
+
+    if (result?.err) {
+      // Parse the error for better messages
+      let errorMessage = "Transaction would fail";
+      
+      if (typeof result.err === "object") {
+        if (result.err.InstructionError) {
+          const [index, error] = result.err.InstructionError;
+          errorMessage = `Instruction ${index} failed: ${JSON.stringify(error)}`;
+        } else {
+          errorMessage = JSON.stringify(result.err);
+        }
+      }
+
+      console.warn("[HELIUS] Simulation failed:", result.err);
+      console.warn("[HELIUS] Logs:", result.logs);
+
+      return {
+        success: false,
+        error: errorMessage,
+        logs: result.logs,
+        unitsConsumed: result.unitsConsumed,
+      };
+    }
+
+    console.log("[HELIUS] Simulation successful, units:", result?.unitsConsumed);
+
+    return {
+      success: true,
+      logs: result?.logs,
+      unitsConsumed: result?.unitsConsumed,
+    };
+  } catch (error: any) {
+    console.error("[HELIUS] Simulation error:", error);
+    return {
+      success: false,
+      error: error.message || "Simulation failed",
+    };
+  }
+}
+
+/**
+ * Simulate transaction with enhanced Helius parsing
+ * Returns predicted balance changes and more details
+ */
+export interface EnhancedSimulationResult extends SimulationResult {
+  balanceChanges?: Array<{
+    account: string;
+    before: number;
+    after: number;
+    change: number;
+  }>;
+  tokenBalanceChanges?: Array<{
+    account: string;
+    mint: string;
+    before: number;
+    after: number;
+    change: number;
+  }>;
+}
+
+export async function simulateTransactionEnhanced(
+  transaction: string // Base64 encoded
+): Promise<EnhancedSimulationResult> {
+  // First do basic simulation
+  const basicResult = await simulateTransaction(transaction);
+  
+  if (!basicResult.success) {
+    return basicResult;
+  }
+
+  // If Helius is configured, we could add enhanced parsing here
+  // For now, return the basic result
+  return basicResult;
+}
+
+/**
  * Utility to check if Helius is configured
  */
 export function isHeliusConfigured(): boolean {

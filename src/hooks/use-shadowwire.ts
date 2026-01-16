@@ -33,6 +33,7 @@ import {
   TOKEN_INFO,
 } from '@/lib/shadowwire';
 import { FEES, calculateFee } from '@/lib/fees';
+import { simulateTransaction } from '@/lib/helius';
 
 /**
  * Record a treasury transaction in the database
@@ -277,6 +278,40 @@ export function useShadowWire() {
 
       transactionsToSign.push(depositTx);
 
+      // 🔍 SIMULATE TRANSACTIONS BEFORE SIGNING
+      // This prevents Phantom warnings and catches errors early
+      console.log('[DEPOSIT] Simulating transactions before signing...');
+      
+      for (let i = 0; i < transactionsToSign.length; i++) {
+        const tx = transactionsToSign[i];
+        const txName = i === 0 && feeTx ? 'Fee transaction' : 'Deposit transaction';
+        
+        try {
+          // Serialize transaction for simulation (without signatures)
+          const serialized = tx.serialize({ 
+            requireAllSignatures: false,
+            verifySignatures: false 
+          });
+          const base64Tx = serialized.toString('base64');
+          
+          const simResult = await simulateTransaction(base64Tx);
+          
+          if (!simResult.success) {
+            console.error(`[DEPOSIT] ${txName} simulation failed:`, simResult.error);
+            throw new Error(`${txName} would fail: ${simResult.error}`);
+          }
+          
+          console.log(`[DEPOSIT] ${txName} simulation successful, units: ${simResult.unitsConsumed}`);
+        } catch (simError: any) {
+          // If it's our error, rethrow
+          if (simError.message?.includes('would fail')) {
+            throw simError;
+          }
+          // Otherwise log but continue (simulation might not be available)
+          console.warn(`[DEPOSIT] ${txName} simulation skipped:`, simError.message);
+        }
+      }
+
       // Batch sign all transactions in one wallet popup
       toast({
         title: 'Confirm transaction',
@@ -399,13 +434,37 @@ export function useShadowWire() {
       // Get unsigned transaction from SDK
       const response = await createWithdrawTransaction(wallet, amountSmallest, token);
 
-      // Decode and sign
+      // Decode and prepare transaction
       const txBuffer = Buffer.from(response.unsigned_tx_base64, 'base64');
       const tx = Transaction.from(txBuffer);
 
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
       tx.recentBlockhash = blockhash;
       tx.feePayer = publicKey;
+
+      // 🔍 SIMULATE BEFORE SIGNING
+      console.log('[WITHDRAW] Simulating transaction before signing...');
+      try {
+        const serialized = tx.serialize({ 
+          requireAllSignatures: false,
+          verifySignatures: false 
+        });
+        const base64Tx = serialized.toString('base64');
+        
+        const simResult = await simulateTransaction(base64Tx);
+        
+        if (!simResult.success) {
+          console.error('[WITHDRAW] Simulation failed:', simResult.error);
+          throw new Error(`Withdrawal would fail: ${simResult.error}`);
+        }
+        
+        console.log('[WITHDRAW] Simulation successful, units:', simResult.unitsConsumed);
+      } catch (simError: any) {
+        if (simError.message?.includes('would fail')) {
+          throw simError;
+        }
+        console.warn('[WITHDRAW] Simulation skipped:', simError.message);
+      }
 
       const signedTx = await signTransaction(tx);
       const signature = await connection.sendRawTransaction(signedTx.serialize());
