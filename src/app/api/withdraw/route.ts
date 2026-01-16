@@ -191,37 +191,38 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      // Public withdrawal - direct SPL transfer
+      // Public withdrawal - direct SPL transfer with admin as fee payer
+      // This is SECURE: SOL never lands in user's wallet, goes directly to network fees
       const { deriveKeypairFromSignature } = await import("@/lib/stealth-wallet");
-      const { Connection, Transaction, sendAndConfirmTransaction } = await import("@solana/web3.js");
+      const { Connection, Transaction, Keypair } = await import("@solana/web3.js");
       const { createTransferInstruction, getAssociatedTokenAddress, createAssociatedTokenAccountInstruction, getAccount } = await import("@solana/spl-token");
 
       const stealthPayKeypair = deriveKeypairFromSignature(signatureBytes);
       const { getRpcUrl } = await import("@/lib/helius");
       const connection = new Connection(getRpcUrl(), "confirmed");
 
-      // Check if StealthPay wallet has enough SOL for gas, sponsor if needed
-      const solBalance = await connection.getBalance(stealthPayKeypair.publicKey);
-      const MIN_SOL_FOR_GAS = 5_000_000; // 0.005 SOL (enough for ATA creation + transfer)
-      
-      if (solBalance < MIN_SOL_FOR_GAS) {
-        console.log(`[Withdraw] StealthPay wallet needs gas. Balance: ${solBalance} lamports, sponsoring...`);
-        
-        // Sponsor gas from admin wallet
-        const sponsorResult = await privacyCashClient.sponsorGas(stealthPayKeypair.publicKey, 5_000_000);
-        
-        if (!sponsorResult.success) {
-          return NextResponse.json(
-            { error: `Failed to sponsor gas: ${sponsorResult.error}` },
-            { status: 500 }
-          );
-        }
-        
-        console.log(`[Withdraw] Gas sponsored successfully: ${sponsorResult.signature}`);
-        
-        // Wait for confirmation
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      // Load admin wallet for fee paying
+      const adminPrivateKey = process.env.ADMIN_WALLET_PRIVATE_KEY;
+      if (!adminPrivateKey) {
+        return NextResponse.json(
+          { error: "Admin wallet not configured for public withdrawals" },
+          { status: 500 }
+        );
       }
+
+      let adminKeypair: InstanceType<typeof Keypair>;
+      try {
+        // Try base58 format first
+        const bs58Module = await import("bs58");
+        const decoded = bs58Module.default.decode(adminPrivateKey);
+        adminKeypair = Keypair.fromSecretKey(decoded);
+      } catch {
+        // Try JSON array format
+        const keyArray = JSON.parse(adminPrivateKey);
+        adminKeypair = Keypair.fromSecretKey(new Uint8Array(keyArray));
+      }
+
+      console.log(`[Withdraw] Admin wallet (fee payer): ${adminKeypair.publicKey.toBase58()}`);
 
       // USDC Mint
       const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
@@ -254,17 +255,22 @@ export async function POST(request: NextRequest) {
         ? Math.floor(amount * 1_000_000)
         : Math.floor(sourceBalance * 1_000_000);
 
-      // Build transaction
+      // Build transaction with ADMIN as fee payer
       const transaction = new Transaction();
+      
+      // Get latest blockhash
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = adminKeypair.publicKey; // ADMIN PAYS FEES - no SOL to user!
 
-      // Check if destination ATA exists, create if not
+      // Check if destination ATA exists, create if not (admin pays for this too)
       try {
         await getAccount(connection, destAta);
       } catch {
-        // ATA doesn't exist, add create instruction
+        // ATA doesn't exist, add create instruction - admin pays rent
         transaction.add(
           createAssociatedTokenAccountInstruction(
-            stealthPayKeypair.publicKey, // payer
+            adminKeypair.publicKey, // ADMIN pays for ATA creation
             destAta,
             recipientPubkey,
             USDC_MINT
@@ -272,25 +278,31 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Add transfer instruction
+      // Add transfer instruction (StealthPay wallet authorizes the transfer)
       transaction.add(
         createTransferInstruction(
           sourceAta,
           destAta,
-          stealthPayKeypair.publicKey,
+          stealthPayKeypair.publicKey, // StealthPay authorizes
           transferAmount
         )
       );
 
-      // Send transaction
-      const signature = await sendAndConfirmTransaction(
-        connection,
-        transaction,
-        [stealthPayKeypair],
-        { commitment: "confirmed" }
-      );
+      // Sign with BOTH wallets:
+      // 1. Admin signs to pay for fees
+      // 2. StealthPay signs to authorize the transfer
+      transaction.sign(adminKeypair, stealthPayKeypair);
 
-      console.log(`[Withdraw] Public transfer complete:`, signature);
+      // Send transaction
+      const signature = await connection.sendRawTransaction(transaction.serialize());
+      
+      await connection.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight,
+      }, "confirmed");
+
+      console.log(`[Withdraw] Public transfer complete (admin paid fees):`, signature);
 
       // Store withdrawal in database
       await prisma.withdrawal.create({
