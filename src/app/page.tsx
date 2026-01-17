@@ -463,7 +463,7 @@ export default function HomePage() {
               <Link href="/learn" className="hover:text-foreground transition-colors">Learn Privacy</Link>
             </div>
             <p className="text-sm text-muted-foreground">
-              Powered by <a href="https://radr.fun" target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400 transition-colors">ShadowWire</a>
+              Powered by Zero-Knowledge Proofs
             </p>
           </div>
         </div>
