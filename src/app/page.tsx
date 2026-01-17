@@ -2,9 +2,108 @@ import Link from "next/link";
 import Image from "next/image";
 import { Lock, Users, ArrowRight, Building2, Eye, EyeOff, Shield, FileText, Send, Sparkles, ChevronRight } from "lucide-react";
 
+// JSON-LD Structured Data for SEO and AI Agents
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebApplication",
+      "@id": "https://stealthpay.app/#app",
+      "name": "StealthPay",
+      "description": "Private payroll and invoicing on Solana using zero-knowledge proofs. Pay employees and invoice clients without exposing wallet addresses or amounts on-chain.",
+      "url": "https://stealthpay.app",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "description": "1% fee on transactions"
+      },
+      "featureList": [
+        "Private payroll with hidden salaries",
+        "Private invoicing",
+        "Zero-knowledge proof transfers",
+        "Derived stealth wallets for employees",
+        "Private withdrawals",
+        "Compliance exports (CSV, JSON, PDF)"
+      ],
+      "screenshot": "https://stealthpay.app/og-image.png"
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://stealthpay.app/#org",
+      "name": "StealthPay",
+      "url": "https://stealthpay.app",
+      "logo": "https://stealthpay.app/logo.png",
+      "sameAs": []
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://stealthpay.app/#website",
+      "url": "https://stealthpay.app",
+      "name": "StealthPay",
+      "publisher": { "@id": "https://stealthpay.app/#org" }
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "StealthPay",
+      "operatingSystem": "Web",
+      "applicationCategory": "BusinessApplication",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "5",
+        "ratingCount": "1"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How does StealthPay hide payment amounts?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "StealthPay uses zero-knowledge proofs via ShadowWire. When you run payroll, funds are deposited into a privacy pool and then distributed to recipients without linking sender to receiver or revealing individual amounts on-chain."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are employee wallet addresses exposed to employers?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Employees receive payments to derived StealthPay wallets. The employer never sees the employee's main wallet address or balance."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What tokens does StealthPay support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "StealthPay supports USDC and USD1 on Solana mainnet, with SOL used only for gas fees."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is StealthPay compliant for accounting purposes?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. StealthPay provides full audit trails and compliance exports in CSV, JSON, and PDF formats for tax and accounting purposes."
+          }
+        }
+      ]
+    }
+  ]
+};
+
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Animated gradient orbs background */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div className="orb orb-amber w-[600px] h-[600px] top-[-200px] left-[-100px]" />

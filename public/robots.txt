@@ -1,0 +1,41 @@
+# StealthPay - Private Payroll on Solana
+# https://stealthpay.app
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dashboard/
+
+# Allow AI crawlers to index public pages
+User-agent: GPTBot
+Allow: /
+Allow: /learn
+Disallow: /api/
+Disallow: /dashboard/
+
+User-agent: ChatGPT-User
+Allow: /
+Allow: /learn
+Disallow: /api/
+Disallow: /dashboard/
+
+User-agent: Claude-Web
+Allow: /
+Allow: /learn
+Disallow: /api/
+Disallow: /dashboard/
+
+User-agent: Anthropic-AI
+Allow: /
+Allow: /learn
+Disallow: /api/
+Disallow: /dashboard/
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /learn
+Disallow: /api/
+Disallow: /dashboard/
+
+# Sitemap
+Sitemap: https://stealthpay.app/sitemap.xml

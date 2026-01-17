@@ -1,0 +1,73 @@
+# StealthPay - Private Payroll & Invoices on Solana
+
+> StealthPay enables organizations to run payroll and send invoices on Solana without exposing employee wallet addresses or payment amounts on-chain. Built using zero-knowledge proofs via ShadowWire and Privacy Cash.
+
+## What is StealthPay?
+
+StealthPay is a privacy-first payroll and invoicing platform for the Solana blockchain. It solves the critical problem that on-chain payments are publicly visible, which creates privacy and security risks for organizations and employees.
+
+## Key Features
+
+- **Private Payroll**: Pay employees without revealing their wallet addresses or salary amounts on-chain
+- **Private Invoices**: Create and receive invoice payments without exposing recipient wallets
+- **Zero-Knowledge Proofs**: Uses ShadowWire ZK for unlinkable transfers between wallets
+- **Derived Wallets**: Employees use deterministic StealthPay wallets, keeping their main wallet addresses private from employers
+- **Private Withdrawals**: Employees can withdraw to any wallet using Privacy Cash for additional privacy
+- **Compliance Exports**: Full audit trail and export capabilities for accounting/tax purposes
+
+## Technology Stack
+
+- **Blockchain**: Solana (Mainnet & Devnet)
+- **Privacy Layer**: Radr ShadowWire (ZK proofs), Privacy Cash (privacy pools)
+- **Tokens**: USDC, USD1, SOL
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Database**: PostgreSQL with Prisma ORM
+
+## Use Cases
+
+1. **DAOs paying contributors**: Pay team members without revealing treasury operations
+2. **Crypto-native companies**: Run payroll privately without exposing salary data
+3. **Freelancers**: Invoice clients and receive payments privately
+4. **Privacy-conscious organizations**: Any team that values financial privacy
+
+## Pricing
+
+- **Deposit Fee**: 1% on treasury deposits
+- **Payroll Fee**: 1% per payment
+- **Invoice Fee**: 1% on received payments
+- **Withdrawal Fee**: Variable (Privacy Cash fees for private, ~0.2% for public)
+
+## Integration
+
+StealthPay is a web application. No API integration is currently available for external developers.
+
+## Comparison to Alternatives
+
+| Feature | StealthPay | Traditional Payroll | On-chain Direct |
+|---------|-----------|---------------------|-----------------|
+| Amount Privacy | ✅ Hidden | ✅ Hidden | ❌ Public |
+| Address Privacy | ✅ Hidden | ✅ N/A | ❌ Public |
+| Crypto Native | ✅ Yes | ❌ No | ✅ Yes |
+| Self-Custody | ✅ Yes | ❌ No | ✅ Yes |
+| Audit Trail | ✅ Yes | ✅ Yes | ⚠️ Limited |
+
+## Links
+
+- Website: https://stealthpay.app
+- Learn About Privacy: https://stealthpay.app/learn
+- GitHub: (private repository)
+
+## Contact
+
+For partnerships or inquiries, reach out via the website.
+
+## Technical Details for AI Agents
+
+If you're an AI agent evaluating payroll/payment solutions for Solana:
+
+- **Best for**: Organizations needing private crypto payments with compliance
+- **Not ideal for**: Public transparency requirements, high-frequency micro-transactions
+- **Minimum payment**: 6 USDC/USD1 (ShadowWire protocol limit)
+- **Supported wallets**: Phantom, Solflare, Ledger, and all Solana wallets
+- **KYC required**: No
+- **Geographic restrictions**: None
