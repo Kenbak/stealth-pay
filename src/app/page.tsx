@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Lock, Users, ArrowRight, Building2, Eye, EyeOff, Shield, FileText, Send, Sparkles, ChevronRight } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // JSON-LD Structured Data for SEO and AI Agents
 const jsonLd = {
@@ -139,13 +140,16 @@ export default function HomePage() {
               Learn Privacy
             </Link>
           </nav>
-          <Link
-            href="/dashboard"
-            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 text-sm shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 btn-shine flex items-center gap-2"
-          >
-            Launch App
-            <ChevronRight className="w-4 h-4" />
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link
+              href="/dashboard"
+              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 text-sm shadow-lg shadow-amber-500/25 hover:shadow-amber-500/40 btn-shine flex items-center gap-2"
+            >
+              Launch App
+              <ChevronRight className="w-4 h-4" />
+            </Link>
+          </div>
         </div>
       </header>
 
