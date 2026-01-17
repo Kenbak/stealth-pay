@@ -11,7 +11,7 @@ const jsonLd = {
       "@type": "WebApplication",
       "@id": "https://stealthpay.app/#app",
       "name": "StealthPay",
-      "description": "Private payroll and invoicing on Solana using zero-knowledge proofs. Pay employees and invoice clients without exposing wallet addresses or amounts on-chain.",
+      "description": "Private payroll and invoicing on Solana using zero-knowledge proofs. Unlinkable transfers, no direct link between sender and recipient on-chain.",
       "url": "https://stealthpay.app",
       "applicationCategory": "FinanceApplication",
       "operatingSystem": "Web",
@@ -168,9 +168,9 @@ export default function HomePage() {
           </h1>
 
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-14 leading-relaxed animate-in" style={{ animationDelay: "100ms" }}>
-            Pay your team and invoice clients on Solana without exposing
+            Pay your team and invoice clients on Solana with unlinkable transfers
             <br className="hidden md:block" />
-            wallet addresses or amounts on-chain.
+            no direct link between sender and recipient on-chain.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in" style={{ animationDelay: "150ms" }}>
@@ -252,11 +252,11 @@ export default function HomePage() {
                 <ul className="space-y-3 text-sm text-muted-foreground">
                   <li className="flex items-center gap-3">
                     <span className="w-5 h-5 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-500 text-xs shrink-0">✓</span>
-                    Recipient wallets hidden
+                    Sender-recipient link broken
                   </li>
                   <li className="flex items-center gap-3">
                     <span className="w-5 h-5 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-500 text-xs shrink-0">✓</span>
-                    Individual amounts hidden
+                    Individual payments unlinkable
                   </li>
                   <li className="flex items-center gap-3">
                     <span className="w-5 h-5 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-500 text-xs shrink-0">✓</span>

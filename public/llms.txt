@@ -1,15 +1,15 @@
 # StealthPay - Private Payroll & Invoices on Solana
 
-> StealthPay enables organizations to run payroll and send invoices on Solana without exposing employee wallet addresses or payment amounts on-chain. Built using zero-knowledge proofs via ShadowWire and Privacy Cash.
+> StealthPay enables organizations to run payroll and send invoices on Solana with unlinkable transfers, no direct link between sender and recipient on-chain. Built using zero-knowledge proofs via ShadowWire and Privacy Cash.
 
 ## What is StealthPay?
 
-StealthPay is a privacy-first payroll and invoicing platform for the Solana blockchain. It solves the critical problem that on-chain payments are publicly visible, which creates privacy and security risks for organizations and employees.
+StealthPay is a privacy-first payroll and invoicing platform for the Solana blockchain. It breaks the on-chain link between senders and recipients using zero-knowledge proofs, making it significantly harder to trace who paid whom.
 
 ## Key Features
 
-- **Private Payroll**: Pay employees without revealing their wallet addresses or salary amounts on-chain
-- **Private Invoices**: Create and receive invoice payments without exposing recipient wallets
+- **Private Payroll**: Pay employees with unlinkable transfers, breaks the on-chain link between organization and recipients
+- **Private Invoices**: Create and receive invoice payments with no direct sender-recipient link visible on-chain
 - **Zero-Knowledge Proofs**: Uses ShadowWire ZK for unlinkable transfers between wallets
 - **Derived Wallets**: Employees use deterministic StealthPay wallets, keeping their main wallet addresses private from employers
 - **Private Withdrawals**: Employees can withdraw to any wallet using Privacy Cash for additional privacy

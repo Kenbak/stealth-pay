@@ -512,7 +512,7 @@ export default function LearnPage() {
 
             <div className="grid md:grid-cols-2 gap-6">
               {[
-                { icon: Search, title: "Blockchain Analytics", desc: "Companies like Chainalysis and Elliptic use sophisticated algorithms to trace funds, cluster wallets, and deanonymize users—often selling this data to governments and corporations." },
+                { icon: Search, title: "Blockchain Analytics", desc: "Companies like Chainalysis and Elliptic use sophisticated algorithms to trace funds, cluster wallets, and deanonymize users, often selling this data to governments and corporations." },
                 { icon: Link2, title: "Wallet Clustering", desc: "When you send from multiple addresses in one transaction, those addresses become \"clustered\" and linked to your identity forever." },
                 { icon: Fingerprint, title: "Exchange KYC Leaks", desc: "Once you link a wallet to an exchange, your entire transaction history becomes attributable to your real identity." },
                 { icon: TrendingUp, title: "On-Chain Forensics", desc: "Transaction timing, amounts, and patterns can reveal sensitive information about your income, spending habits, and business relationships." },
@@ -539,7 +539,7 @@ export default function LearnPage() {
                 <p className="text-sm text-muted-foreground">
                   Your employer can see exactly how much you have, what you buy, and where you send money.
                   Your clients can see all your other clients. Your landlord can see your entire financial history.
-                  This isn't hypothetical—it's the default state of public blockchains.
+                  This isn't hypothetical, it's the default state of public blockchains.
                 </p>
               </div>
             </div>
@@ -732,7 +732,7 @@ export default function LearnPage() {
           <div className="glass-card p-8 rounded-3xl">
             <p className="text-muted-foreground mb-8">
               Privacy protocols like zero-knowledge proofs, mixing pools, and stealth addresses
-              provide the cryptographic foundation for financial privacy. But technology alone isn't enough—
+              provide the cryptographic foundation for financial privacy. But technology alone isn't enough,
               combining tools with good OpSec creates real privacy.
             </p>
 

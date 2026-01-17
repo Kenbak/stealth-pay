@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s | StealthPay",
   },
   description:
-    "Private payroll and invoicing on Solana using zero-knowledge proofs. Pay employees and invoice clients without exposing wallet addresses or amounts on-chain. Built with ShadowWire ZK and Privacy Cash.",
+    "Private payroll and invoicing on Solana using zero-knowledge proofs. Unlinkable transfers, no direct link between sender and recipient on-chain. Built with ShadowWire ZK and Privacy Cash.",
   keywords: [
     "private payroll",
     "solana payroll",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   openGraph: {
     title: "StealthPay | Private Payroll & Invoices on Solana",
-    description: "Pay your team and invoice clients privately using zero-knowledge proofs. No wallet addresses or amounts exposed on-chain.",
+    description: "Pay your team privately using zero-knowledge proofs. Unlinkable transfers, no direct link between sender and recipient on-chain.",
     type: "website",
     url: "https://stealthpay.app",
     siteName: "StealthPay",
@@ -67,7 +67,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "StealthPay | Private Payroll on Solana",
-    description: "Pay your team privately using zero-knowledge proofs. No wallet addresses or amounts exposed.",
+    description: "Pay your team privately using zero-knowledge proofs. Unlinkable transfers on Solana.",
     images: ["/og-image.png"],
     creator: "@stealthpay",
   },
