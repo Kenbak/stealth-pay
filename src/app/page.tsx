@@ -36,6 +36,9 @@ export default function HomePage() {
             <a href="#use-cases" className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
               Use Cases
             </a>
+            <Link href="/learn" className="text-muted-foreground hover:text-foreground transition-colors text-sm font-medium">
+              Learn Privacy
+            </Link>
           </nav>
           <Link
             href="/dashboard"
@@ -75,12 +78,12 @@ export default function HomePage() {
               Launch App
               <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
             </Link>
-            <a
-              href="#how-it-works"
+            <Link
+              href="/learn"
               className="glass-card hover:bg-white/10 dark:hover:bg-white/5 px-8 py-4 rounded-2xl font-semibold text-lg transition-all duration-300 w-full sm:w-auto text-center"
             >
-              Learn More
-            </a>
+              Learn Privacy
+            </Link>
           </div>
         </section>
 
@@ -358,7 +361,7 @@ export default function HomePage() {
             <div className="flex items-center gap-6 text-sm text-muted-foreground">
               <a href="#how-it-works" className="hover:text-foreground transition-colors">How it Works</a>
               <a href="#use-cases" className="hover:text-foreground transition-colors">Use Cases</a>
-              <a href="mailto:hello@stealthpay.io" className="hover:text-foreground transition-colors">Contact</a>
+              <Link href="/learn" className="hover:text-foreground transition-colors">Learn Privacy</Link>
             </div>
             <p className="text-sm text-muted-foreground">
               Powered by <a href="https://radr.fun" target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400 transition-colors">ShadowWire</a>

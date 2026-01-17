@@ -22,6 +22,8 @@ import {
   ArrowDownRight,
   Download,
   FileText,
+  AlertTriangle,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,7 +40,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUserRoles } from "@/hooks/use-user-roles";
 import { truncateAddress, formatCurrency, cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, differenceInHours, formatDistanceToNow } from "date-fns";
 import { createDerivationMessage } from "@/lib/stealth-wallet";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -211,6 +213,20 @@ export default function MyPaymentsPage() {
     setCopied(id);
     setTimeout(() => setCopied(null), 2000);
   };
+
+  // Get hours since last payment for OpSec warning
+  const getHoursSinceLastPayment = useCallback((employment: typeof employments[0]): number | null => {
+    if (!employment.recentPayments || employment.recentPayments.length === 0) return null;
+
+    const sortedPayments = [...employment.recentPayments]
+      .filter(p => p.paidAt)
+      .sort((a, b) => new Date(b.paidAt!).getTime() - new Date(a.paidAt!).getTime());
+
+    if (sortedPayments.length === 0) return null;
+
+    const lastPaymentDate = new Date(sortedPayments[0].paidAt!);
+    return differenceInHours(new Date(), lastPaymentDate);
+  }, []);
 
   const openWithdrawDialog = (employment: typeof employments[0]) => {
     setSelectedEmployment(employment);
@@ -825,6 +841,33 @@ export default function MyPaymentsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* OpSec Warning - Too soon after payment */}
+                {selectedEmployment && (() => {
+                  const hoursSincePayment = getHoursSinceLastPayment(selectedEmployment);
+                  if (hoursSincePayment !== null && hoursSincePayment < 24) {
+                    return (
+                      <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-500" />
+                          <div className="space-y-1">
+                            <span className="font-semibold text-amber-600 dark:text-amber-400">
+                              Privacy Tip: Consider waiting
+                            </span>
+                            <p className="text-muted-foreground">
+                              You received a payment {hoursSincePayment < 1 ? "less than an hour" : `${hoursSincePayment}h`} ago.
+                              Withdrawing immediately after receiving can make timing analysis easier.
+                            </p>
+                            <p className="text-muted-foreground">
+                              <strong>Best practice:</strong> Wait 24-48 hours before withdrawing.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Available Balance */}
                 <div className={cn(

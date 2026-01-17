@@ -7,7 +7,13 @@ import { prisma } from "./db";
 import { randomBytes } from "crypto";
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "fallback-secret-change-in-production"
+  (() => {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("JWT_SECRET environment variable is required");
+    }
+    return secret;
+  })()
 );
 
 const JWT_EXPIRY = process.env.JWT_EXPIRY || "24h";

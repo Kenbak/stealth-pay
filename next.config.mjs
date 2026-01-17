@@ -10,7 +10,33 @@ const nextConfig = {
 
   // Security headers
   async headers() {
+    // Get allowed origin from env or default to same-origin only
+    const allowedOrigin = process.env.NEXT_PUBLIC_APP_URL || "";
+
     return [
+      // CORS headers for API routes
+      {
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Access-Control-Allow-Origin",
+            value: allowedOrigin || "null", // Restrict to same origin if not set
+          },
+          {
+            key: "Access-Control-Allow-Methods",
+            value: "GET, POST, PATCH, DELETE, OPTIONS",
+          },
+          {
+            key: "Access-Control-Allow-Headers",
+            value: "Content-Type, Authorization",
+          },
+          {
+            key: "Access-Control-Allow-Credentials",
+            value: "true",
+          },
+        ],
+      },
+      // General security headers for all routes
       {
         source: "/:path*",
         headers: [

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { TOKENS } from "@/lib/utils";
 
 // Fallback prices (updated periodically for devnet testing)
@@ -15,6 +15,38 @@ const TOKEN_MINTS = {
   USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // Mainnet USDT
 };
 
+// Simple rate limiting (60 requests per minute per IP)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 60;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+
+  if (entry.count >= RATE_LIMIT) {
+    return false;
+  }
+
+  entry.count++;
+  return true;
+}
+
+// Cleanup old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of rateLimitMap.entries()) {
+    if (now > entry.resetTime) {
+      rateLimitMap.delete(ip);
+    }
+  }
+}, 60 * 1000);
+
 /**
  * GET /api/prices - Get token prices
  *
@@ -24,7 +56,18 @@ const TOKEN_MINTS = {
  * - Lite URL (free): https://lite-api.jup.ag/price/v3
  * - Pro URL (with key): https://api.jup.ag/price/v3
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Rate limiting
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ||
+             request.headers.get("x-real-ip") ||
+             "unknown";
+
+  if (!checkRateLimit(ip)) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait." },
+      { status: 429 }
+    );
+  }
   const prices: Record<string, number> = {
     USDC: 1,
     USDT: 1,

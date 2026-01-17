@@ -33,6 +33,7 @@ import {
   Download,
   FileSpreadsheet,
   FileJson,
+  Lightbulb,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -124,7 +125,11 @@ export default function TreasuryPage() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  const dbTransactions = dbData?.transactions || [];
+  // Filter to only show DEPOSIT and WITHDRAW (treasury actions by admin)
+  // Payroll and Invoice transactions are shown in their respective sections
+  const dbTransactions = (dbData?.transactions || []).filter(
+    (tx: { type: string }) => tx.type === "DEPOSIT" || tx.type === "WITHDRAW"
+  );
 
   // Get SOL price for swap calculations
   const solPrice = getPrice("SOL");
@@ -415,6 +420,10 @@ export default function TreasuryPage() {
                       Funds are deposited into your treasury. When you run
                       payroll, payments are made privately using zero-knowledge proofs.
                     </p>
+                    <p className="text-sm text-muted-foreground mt-2 flex items-center gap-1">
+
+                      <span><strong>Tip:</strong> Deposit funds in advance, not right before payroll for better privacy.</span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -650,35 +659,8 @@ export default function TreasuryPage() {
             </div>
           )}
 
-          {/* Deposit Flow Visualization */}
-          {inputAmount > 0 && (
-            <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-              <div className="flex flex-col items-center">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                  <Wallet className="h-5 w-5" />
-                </div>
-                <span className="mt-1">Your Wallet</span>
-              </div>
 
-              <ArrowRight className="h-5 w-5 text-muted-foreground/50" />
 
-              <div className="flex flex-col items-center">
-                <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
-                  <Shield className="h-5 w-5 text-amber-500" />
-                </div>
-                <span className="mt-1">Privacy Pool</span>
-              </div>
-
-              <ArrowRight className="h-5 w-5 text-muted-foreground/50" />
-
-              <div className="flex flex-col items-center">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                  🔒
-                </div>
-                <span className="mt-1">Private Payroll</span>
-              </div>
-            </div>
-          )}
 
               {/* Deposit Button */}
               <Button
@@ -837,9 +819,9 @@ export default function TreasuryPage() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
-                History
+                Treasury Activity
               </CardTitle>
-              <CardDescription>Recent transactions</CardDescription>
+              <CardDescription>Deposits & withdrawals</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -952,8 +934,8 @@ export default function TreasuryPage() {
           ) : dbTransactions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Shield className="h-10 w-10 mx-auto mb-3 opacity-50" />
-              <p>No transactions found</p>
-              <p className="text-sm">Treasury transactions will appear here</p>
+              <p>No deposits or withdrawals yet</p>
+              <p className="text-sm">Your treasury activity will appear here</p>
             </div>
           ) : (
             <div className="space-y-3 max-h-[400px] overflow-y-auto">
