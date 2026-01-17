@@ -39,6 +39,20 @@ import { formatDistanceToNow, format } from "date-fns";
 import { calculateInvoiceFees, FEES } from "@/lib/fees";
 import { downloadInvoicesCSV, downloadInvoiceDetailCSV, InvoiceExportData } from "@/lib/export";
 import { useOrganization } from "@/hooks/use-organization";
+import { TOKENS, getTokenByMint } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+// Tokens available for invoices (stablecoins only)
+const INVOICE_TOKENS = [
+  { key: "USDC", ...TOKENS.USDC },
+  { key: "USD1", ...TOKENS.USD1 },
+] as const;
 
 export default function InvoicesPage() {
   // Redirect to /dashboard if no organization
@@ -64,6 +78,7 @@ export default function InvoicesPage() {
     amount: "",
     description: "",
     dueDate: "",
+    token: "USDC" as "USDC" | "USD1",
   });
   const [createdInvoice, setCreatedInvoice] = useState<{
     publicId: string;
@@ -94,6 +109,9 @@ export default function InvoicesPage() {
     });
   };
 
+  // Minimum invoice amount (ShadowWire requirement)
+  const MIN_INVOICE_AMOUNT = 6;
+
   const handleCreateInvoice = async () => {
     if (!newInvoice.amount || !newInvoice.description) {
       toast({
@@ -104,11 +122,23 @@ export default function InvoicesPage() {
       return;
     }
 
+    const amount = parseFloat(newInvoice.amount);
+    if (amount < MIN_INVOICE_AMOUNT) {
+      toast({
+        title: "Amount too low",
+        description: `Minimum invoice amount is ${MIN_INVOICE_AMOUNT} ${newInvoice.token}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
+      const selectedToken = TOKENS[newInvoice.token];
       const result = await createInvoice({
-        amount: parseFloat(newInvoice.amount),
+        amount,
         description: newInvoice.description,
         dueDate: newInvoice.dueDate || undefined,
+        tokenMint: selectedToken.mint,
       });
 
       if (result) {
@@ -155,10 +185,12 @@ export default function InvoicesPage() {
   };
 
   const resetDialog = () => {
-    setNewInvoice({ amount: "", description: "", dueDate: "" });
+    setNewInvoice({ amount: "", description: "", dueDate: "", token: "USDC" });
     setCreatedInvoice(null);
     setIsDialogOpen(false);
   };
+
+  const selectedTokenInfo = TOKENS[newInvoice.token];
 
   const fees = newInvoice.amount ? calculateInvoiceFees(parseFloat(newInvoice.amount)) : null;
 
@@ -211,17 +243,50 @@ export default function InvoicesPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
+                  {/* Token Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Amount (USDC)</Label>
+                    <Label>Token</Label>
+                    <Select
+                      value={newInvoice.token}
+                      onValueChange={(value: "USDC" | "USD1") =>
+                        setNewInvoice({ ...newInvoice, token: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select token" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INVOICE_TOKENS.map((token) => (
+                          <SelectItem key={token.key} value={token.key}>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={token.logo}
+                                alt={token.symbol}
+                                className="w-5 h-5 rounded-full"
+                              />
+                              <span>{token.symbol}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Amount ({selectedTokenInfo.symbol})</Label>
                     <Input
                       id="amount"
                       type="number"
-                      placeholder="500"
+                      placeholder="100"
+                      min={MIN_INVOICE_AMOUNT}
                       value={newInvoice.amount}
                       onChange={(e) =>
                         setNewInvoice({ ...newInvoice, amount: e.target.value })
                       }
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Minimum: {MIN_INVOICE_AMOUNT} {selectedTokenInfo.symbol}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
@@ -251,23 +316,23 @@ export default function InvoicesPage() {
                     <div className="p-4 rounded-lg bg-muted/50 space-y-2 text-sm">
                       <div className="flex justify-between text-muted-foreground">
                         <span>Invoice Amount</span>
-                        <span>{fees.invoiceAmount.toLocaleString()} USDC</span>
+                        <span>{fees.invoiceAmount.toLocaleString()} {selectedTokenInfo.symbol}</span>
                       </div>
                       <div className="flex justify-between text-muted-foreground">
                         <span>Platform Fee ({fees.stealthFeeRate}%)</span>
-                        <span>{fees.stealthFee.toLocaleString()} USDC</span>
+                        <span>{fees.stealthFee.toLocaleString()} {selectedTokenInfo.symbol}</span>
                       </div>
                       <div className="flex justify-between text-muted-foreground">
                         <span>Privacy Fee ({fees.shadowwireFeeRate}%)</span>
-                        <span>{fees.shadowwireFee.toLocaleString()} USDC</span>
+                        <span>{fees.shadowwireFee.toLocaleString()} {selectedTokenInfo.symbol}</span>
                       </div>
                       <div className="flex justify-between font-medium pt-2 border-t border-border">
                         <span>Client Pays</span>
-                        <span className="text-amber-500">{fees.totalClientPays.toLocaleString()} USDC</span>
+                        <span className="text-amber-500">{fees.totalClientPays.toLocaleString()} {selectedTokenInfo.symbol}</span>
                       </div>
                       <div className="flex justify-between text-teal-500">
                         <span>You Receive</span>
-                        <span>{fees.freelancerReceives.toLocaleString()} USDC</span>
+                        <span>{fees.freelancerReceives.toLocaleString()} {selectedTokenInfo.symbol}</span>
                       </div>
                     </div>
                   )}
@@ -460,7 +525,9 @@ export default function InvoicesPage() {
                     {/* Amount */}
                     <div className="hidden md:block md:col-span-2 text-right">
                       <p className="font-semibold">${invoice.amount.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">USDC</p>
+                      <p className="text-xs text-muted-foreground">
+                        {getTokenByMint(invoice.tokenMint)?.symbol || "USDC"}
+                      </p>
                     </div>
 
                     {/* Status */}
@@ -626,11 +693,13 @@ export default function InvoicesPage() {
                 <h3 className="text-sm font-medium text-muted-foreground">Amount Breakdown</h3>
                 {(() => {
                   const fees = calculateInvoiceFees(selectedInvoice.amount);
+                  const invoiceToken = getTokenByMint(selectedInvoice.tokenMint);
+                  const symbol = invoiceToken?.symbol || "USDC";
                   return (
                     <>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Invoice Amount</span>
-                        <span className="font-medium">${selectedInvoice.amount.toLocaleString()} USDC</span>
+                        <span className="font-medium">${selectedInvoice.amount.toLocaleString()} {symbol}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Platform Fee ({fees.stealthFeeRate}%)</span>
@@ -642,11 +711,11 @@ export default function InvoicesPage() {
                       </div>
                       <div className="flex justify-between text-sm pt-2 border-t border-white/10">
                         <span className="font-medium">Client Pays</span>
-                        <span className="font-semibold text-amber-500">${fees.totalClientPays.toLocaleString()} USDC</span>
+                        <span className="font-semibold text-amber-500">${fees.totalClientPays.toLocaleString()} {symbol}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="font-medium">You Receive</span>
-                        <span className="font-semibold text-teal-500">${fees.freelancerReceives.toLocaleString()} USDC</span>
+                        <span className="font-semibold text-teal-500">${fees.freelancerReceives.toLocaleString()} {symbol}</span>
                       </div>
                     </>
                   );

@@ -948,19 +948,19 @@ export default function PayrollPage() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold">{formatCurrency(payment.amount)}</p>
-                          <Badge
-                            className={`text-xs ${
-                              payment.status === "COMPLETED"
-                                ? "bg-teal-500/10 text-teal-500"
-                                : payment.status === "FAILED"
-                                ? "bg-red-500/10 text-red-500"
-                                : "bg-blue-500/10 text-blue-500"
-                            }`}
-                          >
-                            {payment.status === "COMPLETED" && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                            {payment.status === "FAILED" && <XCircle className="h-3 w-3 mr-1" />}
-                            {payment.status.charAt(0) + payment.status.slice(1).toLowerCase()}
-                          </Badge>
+                          {/* Only show badge for non-completed payments to avoid duplication with header */}
+                          {payment.status === "COMPLETED" ? (
+                            <CheckCircle2 className="h-4 w-4 text-teal-500" />
+                          ) : payment.status === "FAILED" ? (
+                            <Badge className="text-xs bg-red-500/10 text-red-500">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Failed
+                            </Badge>
+                          ) : (
+                            <Badge className="text-xs bg-blue-500/10 text-blue-500">
+                              Processing
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     ))}

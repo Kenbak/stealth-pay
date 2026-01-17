@@ -360,93 +360,108 @@ export default function EmployeesPage() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {employees.map((employee) => (
                 <div
                   key={employee.id}
-                  className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 ${
+                  className={`relative group rounded-2xl border p-5 transition-all duration-200 ${
                     employee.isPayrollReady
-                      ? "hover:border-teal-500/30"
-                      : "hover:border-amber-500/30 border-dashed"
+                      ? "bg-teal-500/[0.02] border-teal-500/20 hover:border-teal-500/40"
+                      : "bg-amber-500/[0.02] border-amber-500/20 hover:border-amber-500/40 border-dashed"
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                      employee.isPayrollReady
-                        ? "bg-teal-500/10"
-                        : "bg-amber-500/10"
-                    }`}>
-                      <span className={`font-display font-semibold ${
-                        employee.isPayrollReady
-                          ? "text-teal-500"
-                          : "text-amber-500"
-                      }`}>
-                        {employee.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-medium">{employee.name}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        {employee.stealthPayWallet ? (
-                          <>
-                            <Wallet className="h-3 w-3" />
-                            <span className="font-mono">
-                              {truncateAddress(employee.stealthPayWallet, 6)}
-                            </span>
-                          </>
-                        ) : employee.inviteUrl ? (
-                          <button
-                            onClick={() => handleCopyInvite(employee)}
-                            className="flex items-center gap-1 hover:text-amber-500 transition-colors"
-                          >
-                            {copiedId === employee.id ? (
-                              <>
-                                <CheckCircle2 className="h-3 w-3 text-teal-500" />
-                                <span className="text-teal-500">Copied!</span>
-                              </>
-                            ) : (
-                              <>
-                                <LinkIcon className="h-3 w-3" />
-                                <span>Copy invite link</span>
-                                <Copy className="h-3 w-3" />
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <span className="italic">No wallet registered</span>
-                        )}
-                      </div>
-                    </div>
+                  {/* Actions (top right) */}
+                  <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg"
+                      onClick={() => handleEditClick(employee)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 rounded-lg text-destructive"
+                      onClick={() => handleDelete(employee.id)}
+                      disabled={isDeleting}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="font-display font-semibold">
-                        {formatCurrency(employee.salary)}
-                      </p>
+                  {/* Avatar and Name */}
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold ${
+                      employee.isPayrollReady
+                        ? "bg-teal-500/15 text-teal-500"
+                        : "bg-amber-500/15 text-amber-500"
+                    }`}>
+                      {employee.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate">{employee.name}</h3>
                       {getStatusBadge(employee)}
                     </div>
-
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="rounded-xl"
-                        onClick={() => handleEditClick(employee)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="rounded-xl"
-                        onClick={() => handleDelete(employee.id)}
-                        disabled={isDeleting}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
                   </div>
+
+                  {/* Salary */}
+                  <div className="flex items-center justify-between mb-4 p-3 rounded-xl bg-muted/30">
+                    <span className="text-sm text-muted-foreground">Monthly</span>
+                    <span className="text-lg font-bold font-display">
+                      {formatCurrency(employee.salary)}
+                    </span>
+                  </div>
+
+                  {/* Wallet / Invite */}
+                  {employee.stealthPayWallet ? (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">StealthPay Wallet</p>
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 font-mono text-sm">
+                        <Wallet className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <span className="truncate">
+                          {truncateAddress(employee.stealthPayWallet, 6)}
+                        </span>
+                        <button
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(employee.stealthPayWallet!);
+                            setCopiedId(employee.id);
+                            setTimeout(() => setCopiedId(null), 2000);
+                          }}
+                          className="ml-auto shrink-0 hover:text-foreground transition-colors"
+                        >
+                          {copiedId === employee.id ? (
+                            <CheckCircle2 className="h-4 w-4 text-teal-500" />
+                          ) : (
+                            <Copy className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : employee.inviteUrl ? (
+                    <button
+                      onClick={() => handleCopyInvite(employee)}
+                      className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 text-amber-500 hover:bg-amber-500/10 transition-colors text-sm"
+                    >
+                      {copiedId === employee.id ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          Invite link copied!
+                        </>
+                      ) : (
+                        <>
+                          <LinkIcon className="h-4 w-4" />
+                          Copy invite link
+                          <Copy className="h-3 w-3" />
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic text-center py-2">
+                      No wallet registered
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

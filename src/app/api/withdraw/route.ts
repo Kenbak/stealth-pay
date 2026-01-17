@@ -27,6 +27,7 @@ import { createDerivationMessage } from "@/lib/stealth-wallet";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 import { prisma } from "@/lib/db";
+import { calculateWithdrawalFee, FEES } from "@/lib/fees";
 
 interface WithdrawRequest {
   /** Base64-encoded signature of the derivation message */
@@ -250,10 +251,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Calculate transfer amount (in micro-units)
-      const transferAmount = amount
-        ? Math.floor(amount * 1_000_000)
-        : Math.floor(sourceBalance * 1_000_000);
+      // Calculate gross amount to withdraw
+      const grossAmount = amount || sourceBalance;
+
+      // Calculate StealthPay fee for public withdrawal
+      const { fee: stealthPayFee, netAmount } = calculateWithdrawalFee(grossAmount, false);
+
+      console.log(`[Withdraw] Public withdrawal fee: ${stealthPayFee} USDC (${FEES.WITHDRAWAL.PUBLIC_RATE * 100}%)`);
+
+      // Amount going to recipient (in micro-units)
+      const transferAmount = Math.floor(netAmount * 1_000_000);
+      // Fee amount (in micro-units)
+      const feeAmountMicro = Math.floor(stealthPayFee * 1_000_000);
 
       // Build transaction with ADMIN as fee payer
       const transaction = new Transaction();
@@ -278,7 +287,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Add transfer instruction (StealthPay wallet authorizes the transfer)
+      // Add transfer instruction to recipient (StealthPay wallet authorizes)
       transaction.add(
         createTransferInstruction(
           sourceAta,
@@ -287,6 +296,34 @@ export async function POST(request: NextRequest) {
           transferAmount
         )
       );
+
+      // Add fee transfer to StealthPay fee wallet (if fee > 0)
+      if (feeAmountMicro > 0) {
+        const feeWalletAta = await getAssociatedTokenAddress(USDC_MINT, FEES.WALLET);
+
+        // Check if fee wallet ATA exists, create if not
+        try {
+          await getAccount(connection, feeWalletAta);
+        } catch {
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              adminKeypair.publicKey, // Admin pays for ATA creation
+              feeWalletAta,
+              FEES.WALLET,
+              USDC_MINT
+            )
+          );
+        }
+
+        transaction.add(
+          createTransferInstruction(
+            sourceAta,
+            feeWalletAta,
+            stealthPayKeypair.publicKey, // StealthPay authorizes
+            feeAmountMicro
+          )
+        );
+      }
 
       // Sign with BOTH wallets:
       // 1. Admin signs to pay for fees
@@ -308,8 +345,8 @@ export async function POST(request: NextRequest) {
       await prisma.withdrawal.create({
         data: {
           employeeId: employee.id,
-          amount: transferAmount / 1_000_000,
-          feeAmount: 0.002, // Approximate SOL gas cost in USD
+          amount: netAmount, // Net amount received by user
+          feeAmount: stealthPayFee, // StealthPay fee (0.3%)
           mode: "PUBLIC",
           txSignature: signature,
           recipient: recipientAddress.slice(0, 8) + "..." + recipientAddress.slice(-4),
@@ -321,10 +358,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         signature,
-        withdrawnAmount: transferAmount / 1_000_000,
-        feeAmount: 0.002,
+        withdrawnAmount: netAmount,
+        feeAmount: stealthPayFee,
         mode: "public",
-        message: "Transfer successful.",
+        message: `Transfer successful. Fee: ${stealthPayFee.toFixed(4)} USDC (${FEES.WITHDRAWAL.PUBLIC_RATE * 100}%)`,
       });
     }
 

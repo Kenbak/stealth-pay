@@ -14,7 +14,15 @@ import { WalletProvider } from "@/components/wallet-provider";
 import { Providers } from "@/components/providers";
 import { calculateInvoiceFees, FEES } from "@/lib/fees";
 import { useShadowWire, MINIMUM_DEPOSIT } from "@/hooks/use-shadowwire";
-import { TOKENS } from "@/lib/utils";
+import { TOKENS, getTokenByMint } from "@/lib/utils";
+
+// Get token key from mint address (only tokens supported by ShadowWire)
+function getTokenKey(mint: string): "USDC" | "USD1" | "SOL" {
+  const token = getTokenByMint(mint);
+  if (token?.symbol === "USD1") return "USD1";
+  if (token?.symbol === "SOL") return "SOL";
+  return "USDC"; // Default to USDC (USDT not supported by ShadowWire for invoices)
+}
 
 interface InvoiceData {
   publicId: string;
@@ -30,9 +38,15 @@ interface InvoiceData {
 }
 
 function PayInvoiceContent({ publicId }: { publicId: string }) {
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, disconnect, wallet } = useWallet();
   const { connection } = useConnection();
   const { setVisible } = useWalletModal();
+
+  // Handle wallet change - disconnect and show modal
+  const handleChangeWallet = async () => {
+    await disconnect();
+    setTimeout(() => setVisible(true), 100);
+  };
   const { deposit, transfer, balance, isLoading: shadowWireLoading, fetchBalance } = useShadowWire();
 
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
@@ -43,24 +57,29 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
   const [txSignature, setTxSignature] = useState<string | null>(null);
   const [walletBalance, setWalletBalance] = useState<number>(0);
 
-  // Fetch wallet USDC balance when connected
+  // Get token info for invoice
+  const tokenInfo = invoice ? getTokenByMint(invoice.tokenMint) : TOKENS.USDC;
+  const tokenKey = invoice ? getTokenKey(invoice.tokenMint) : "USDC";
+  const tokenDecimals = tokenInfo?.decimals || 6;
+
+  // Fetch wallet token balance when connected
   useEffect(() => {
     async function checkWalletBalance() {
-      if (!publicKey || !connection) return;
+      if (!publicKey || !connection || !invoice) return;
       try {
-        const usdcMint = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-        const ata = await getAssociatedTokenAddress(usdcMint, publicKey);
+        const mintPubkey = new PublicKey(invoice.tokenMint);
+        const ata = await getAssociatedTokenAddress(mintPubkey, publicKey);
         const account = await getAccount(connection, ata);
-        setWalletBalance(Number(account.amount) / 1e6); // USDC has 6 decimals
+        setWalletBalance(Number(account.amount) / Math.pow(10, tokenDecimals));
       } catch {
         setWalletBalance(0);
       }
     }
-    if (connected) {
+    if (connected && invoice) {
       checkWalletBalance();
       fetchBalance(); // Also fetch ShadowWire pool balance
     }
-  }, [publicKey, connected, connection, fetchBalance]);
+  }, [publicKey, connected, connection, invoice, tokenDecimals, fetchBalance]);
 
   useEffect(() => {
     async function fetchInvoice() {
@@ -99,26 +118,30 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
       setPaymentStep("checking");
       await fetchBalance();
 
-      const poolUsdc = balance.usdc;
-      console.log("[PAY] Pool balance:", poolUsdc, "Amount needed:", amountNeeded);
+      // Get the correct pool balance based on token
+      const poolBalance = tokenKey === "USD1" ? (balance.usd1 || 0) : balance.usdc;
+      console.log(`[PAY] Pool ${tokenKey} balance:`, poolBalance, "Amount needed:", amountNeeded);
 
       // Step 2: If pool balance is insufficient, deposit first
-      if (poolUsdc < amountNeeded) {
-        const amountToDeposit = amountNeeded - poolUsdc;
-        // Add buffer for ShadowWire minimum and fees
-        const depositAmount = Math.max(amountToDeposit + 1, MINIMUM_DEPOSIT.USDC);
+      if (poolBalance < amountNeeded) {
+        // Calculate how much we need to deposit
+        const shortfall = amountNeeded - poolBalance;
 
-        console.log("[PAY] Need to deposit:", depositAmount, "USDC");
+        // ShadowWire has a minimum deposit, but we can bypass it for invoices
+        // by depositing exactly what we need (skipFee=true mode allows this)
+        const depositAmount = shortfall;
 
-        // Check wallet balance
+        console.log(`[PAY] Need to deposit: ${depositAmount} ${tokenKey} (shortfall)`);
+
+        // Check wallet balance - user needs enough for the deposit
         if (walletBalance < depositAmount) {
           throw new Error(
-            `Insufficient USDC in wallet. You have ${walletBalance.toFixed(2)} USDC but need ${depositAmount.toFixed(2)} USDC.`
+            `Insufficient ${tokenKey}. You have ${walletBalance.toFixed(2)} ${tokenKey} but need ${depositAmount.toFixed(2)} ${tokenKey}.`
           );
         }
 
         setPaymentStep("depositing");
-        const depositSig = await deposit(depositAmount, "USDC", true); // skipFee for invoice payments
+        const depositSig = await deposit(depositAmount, tokenKey, true); // skipFee for invoice payments
 
         if (!depositSig) {
           throw new Error("Deposit failed. Please try again.");
@@ -133,12 +156,12 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
 
       // Step 3: Execute private transfer
       setPaymentStep("transferring");
-      console.log("[PAY] Executing transfer to:", invoice.recipientWallet, "Amount:", amountNeeded);
+      console.log(`[PAY] Executing ${tokenKey} transfer to:`, invoice.recipientWallet, "Amount:", amountNeeded);
 
       const signature = await transfer(
         invoice.recipientWallet,
         amountNeeded,
-        "USDC"
+        tokenKey
       );
 
       if (!signature) {
@@ -244,7 +267,7 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm"
               >
-                View on Solscan <ExternalLink className="w-4 h-4" />
+                View on Explorer <ExternalLink className="w-4 h-4" />
               </a>
             )}
           </Card>
@@ -288,8 +311,15 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
             {/* Amount */}
             <div className="p-8 text-center border-b border-white/10 bg-gradient-to-br from-amber-500/5 to-transparent">
               <div className="text-sm text-muted-foreground mb-2">Amount Due</div>
-              <div className="text-5xl font-display font-bold text-gradient-vibrant mb-2">
-                {invoice.amount.toLocaleString()} {token.symbol}
+              <div className="flex items-center justify-center gap-3 mb-2">
+                <img
+                  src={token.logo}
+                  alt={token.symbol}
+                  className="w-10 h-10 rounded-full"
+                />
+                <div className="text-5xl font-display font-bold text-gradient-vibrant">
+                  {invoice.amount.toLocaleString()} {token.symbol}
+                </div>
               </div>
               <div className="text-sm text-muted-foreground">
                 {invoice.description}
@@ -347,18 +377,62 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
                 </div>
               )}
 
-              {/* Wallet balance indicator */}
-              {connected && (
-                <div className="mb-4 p-3 rounded-lg bg-white/5 border border-white/10 flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Wallet className="w-4 h-4" />
-                    <span>Your Wallet</span>
+              {/* Connected wallet info */}
+              {connected && publicKey && (
+                <div className="mb-4 p-3 rounded-lg bg-white/5 border border-white/10 text-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {wallet?.adapter.icon && (
+                        <img src={wallet.adapter.icon} alt="" className="w-4 h-4" />
+                      )}
+                      <span className="font-mono text-xs">
+                        {publicKey.toBase58().slice(0, 4)}...{publicKey.toBase58().slice(-4)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleChangeWallet}
+                      className="text-xs text-amber-500 hover:text-amber-400 transition-colors"
+                      disabled={paying}
+                    >
+                      Change Wallet
+                    </button>
                   </div>
-                  <span className={walletBalance >= fees.totalClientPays ? "text-teal-500" : "text-red-500"}>
-                    {walletBalance.toFixed(2)} USDC
-                  </span>
                 </div>
               )}
+
+              {/* Wallet balance indicator */}
+              {connected && (() => {
+                // Calculate total available (wallet + pool) - use correct token
+                const poolBalance = tokenKey === "USD1" ? (balance.usd1 || 0) : balance.usdc;
+                const totalAvailable = walletBalance + poolBalance;
+                const canPay = totalAvailable >= fees.totalClientPays;
+
+                return (
+                  <div className="mb-4 p-3 rounded-lg bg-white/5 border border-white/10 text-sm space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Wallet className="w-4 h-4" />
+                        <span>Balance</span>
+                      </div>
+                      <span className={walletBalance > 0 ? "text-foreground" : "text-muted-foreground"}>
+                        {walletBalance.toFixed(2)} {token.symbol}
+                      </span>
+                    </div>
+                    {poolBalance > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground ml-6">Privacy Pool</span>
+                        <span className="text-teal-500">+{poolBalance.toFixed(2)} {token.symbol}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                      <span className="text-muted-foreground">Available</span>
+                      <span className={canPay ? "text-teal-500 font-medium" : "text-red-500 font-medium"}>
+                        {totalAvailable.toFixed(2)} {token.symbol}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {!connected ? (
                 <Button
@@ -367,28 +441,34 @@ function PayInvoiceContent({ publicId }: { publicId: string }) {
                 >
                   Connect Wallet to Pay
                 </Button>
-              ) : (
-                <Button
-                  onClick={handlePay}
-                  disabled={paying || shadowWireLoading || walletBalance < fees.totalClientPays}
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-semibold py-6 text-lg disabled:opacity-50"
-                >
-                  {paying ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                      {paymentStep === "checking" && "Checking balance..."}
-                      {paymentStep === "depositing" && "Depositing to privacy pool..."}
-                      {paymentStep === "transferring" && "Sending private payment..."}
-                      {paymentStep === "confirming" && "Confirming..."}
-                      {paymentStep === "idle" && "Processing..."}
-                    </>
-                  ) : walletBalance < fees.totalClientPays ? (
-                    <>Insufficient USDC</>
-                  ) : (
-                    <>Pay {fees.totalClientPays.toLocaleString()} {token.symbol}</>
-                  )}
-                </Button>
-              )}
+              ) : (() => {
+                const poolBalance = tokenKey === "USD1" ? (balance.usd1 || 0) : balance.usdc;
+                const totalAvailable = walletBalance + poolBalance;
+                const canPay = totalAvailable >= fees.totalClientPays;
+
+                return (
+                  <Button
+                    onClick={handlePay}
+                    disabled={paying || shadowWireLoading || !canPay}
+                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-semibold py-6 text-lg disabled:opacity-50"
+                  >
+                    {paying ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        {paymentStep === "checking" && "Checking balance..."}
+                        {paymentStep === "depositing" && "Depositing to privacy pool..."}
+                        {paymentStep === "transferring" && "Sending private payment..."}
+                        {paymentStep === "confirming" && "Confirming..."}
+                        {paymentStep === "idle" && "Processing..."}
+                      </>
+                    ) : !canPay ? (
+                      <>Insufficient {token.symbol}</>
+                    ) : (
+                      <>Pay {fees.totalClientPays.toLocaleString()} {token.symbol}</>
+                    )}
+                  </Button>
+                );
+              })()}
 
               <p className="text-center text-xs text-muted-foreground mt-4 flex items-center justify-center gap-2">
                 <Lock className="w-3 h-3" />

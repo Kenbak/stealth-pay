@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { hashWallet } from "@/lib/wallet-hash";
+import { calculateWithdrawalFee, FEES } from "@/lib/fees";
 
 export async function GET(request: NextRequest) {
   try {
@@ -91,10 +92,11 @@ export async function POST(request: NextRequest) {
     let feePercentage: number;
 
     if (mode === "public") {
-      // Public transfer: only gas fees
-      estimatedFee = 0.002; // ~0.002 SOL in USD
-      estimatedReceived = amount - estimatedFee;
-      feePercentage = (estimatedFee / amount) * 100;
+      // Public transfer: StealthPay fee (0.3%)
+      const result = calculateWithdrawalFee(amount, false);
+      estimatedFee = result.fee;
+      estimatedReceived = result.netAmount;
+      feePercentage = FEES.WITHDRAWAL.PUBLIC_RATE * 100;
     } else {
       // Private withdrawal via Privacy Cash
       // Based on observed fees: ~15% for small amounts

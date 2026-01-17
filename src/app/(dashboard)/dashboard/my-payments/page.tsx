@@ -104,71 +104,74 @@ export default function MyPaymentsPage() {
   const [balances, setBalances] = useState<Record<string, WalletBalance>>({});
   const [showBalances, setShowBalances] = useState(true);
 
-  // Fetch wallet balances via API (server-side uses Helius)
-  useEffect(() => {
-    const fetchBalances = async () => {
-      if (!employments.length) return;
+  // Fetch wallet balances via API (server-side uses Helius) - extracted as callback
+  const fetchBalances = useCallback(async () => {
+    if (!employments.length) return;
 
-      for (const emp of employments) {
-        if (!emp.stealthPayWallet) continue;
+    for (const emp of employments) {
+      if (!emp.stealthPayWallet) continue;
 
-        setBalances(prev => ({
-          ...prev,
-          [emp.id]: { ...prev[emp.id], loading: true }
-        }));
+      setBalances(prev => ({
+        ...prev,
+        [emp.id]: { ...prev[emp.id], loading: true }
+      }));
 
-        try {
-          const response = await fetch(`/api/balance?wallet=${emp.stealthPayWallet}`);
-          const data = await response.json();
+      try {
+        const response = await fetch(`/api/balance?wallet=${emp.stealthPayWallet}`);
+        const data = await response.json();
 
-          if (response.ok) {
-            console.log("[MyPayments] Balance fetched:", data);
-            setBalances(prev => ({
-              ...prev,
-              [emp.id]: { usdc: data.usdc || 0, loading: false }
-            }));
-          } else {
-            console.error("[MyPayments] Balance API error:", data.error);
-            setBalances(prev => ({
-              ...prev,
-              [emp.id]: { usdc: 0, loading: false }
-            }));
-          }
-        } catch (error: any) {
-          console.error("[MyPayments] Error fetching balance:", error?.message || error);
+        if (response.ok) {
+          console.log("[MyPayments] Balance fetched:", data);
+          setBalances(prev => ({
+            ...prev,
+            [emp.id]: { usdc: data.usdc || 0, loading: false }
+          }));
+        } else {
+          console.error("[MyPayments] Balance API error:", data.error);
           setBalances(prev => ({
             ...prev,
             [emp.id]: { usdc: 0, loading: false }
           }));
         }
+      } catch (error: any) {
+        console.error("[MyPayments] Error fetching balance:", error?.message || error);
+        setBalances(prev => ({
+          ...prev,
+          [emp.id]: { usdc: 0, loading: false }
+        }));
       }
-    };
-
-    fetchBalances();
+    }
   }, [employments]);
 
-  // Fetch withdrawal history
+  // Fetch balances on mount
   useEffect(() => {
-    const fetchHistory = async () => {
-      if (!employments.length) return;
-      setLoadingHistory(true);
-      try {
-        const token = localStorage.getItem("auth-token");
-        const response = await fetch("/api/withdrawals", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        const data = await response.json();
-        if (response.ok && data.withdrawals) {
-          setWithdrawalHistory(data.withdrawals);
-        }
-      } catch (error) {
-        console.error("[MyPayments] Error fetching history:", error);
-      } finally {
-        setLoadingHistory(false);
+    fetchBalances();
+  }, [fetchBalances]);
+
+  // Fetch withdrawal history - extracted as callback so it can be called after withdrawal
+  const fetchWithdrawalHistory = useCallback(async () => {
+    if (!employments.length) return;
+    setLoadingHistory(true);
+    try {
+      const token = localStorage.getItem("auth-token");
+      const response = await fetch("/api/withdrawals", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await response.json();
+      if (response.ok && data.withdrawals) {
+        setWithdrawalHistory(data.withdrawals);
       }
-    };
-    fetchHistory();
+    } catch (error) {
+      console.error("[MyPayments] Error fetching history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
   }, [employments]);
+
+  // Fetch withdrawal history on mount
+  useEffect(() => {
+    fetchWithdrawalHistory();
+  }, [fetchWithdrawalHistory]);
 
   // Estimate fee when amount or mode changes
   useEffect(() => {
@@ -306,8 +309,12 @@ export default function MyPaymentsPage() {
         }
       }
 
-      // Refresh balances after withdrawal
-      setTimeout(() => refetch(), 2000);
+      // Refresh all data after withdrawal (with delay for blockchain confirmation)
+      setTimeout(() => {
+        refetch();
+        fetchBalances();
+        fetchWithdrawalHistory();
+      }, 2000);
 
     } catch (err: any) {
       console.error("Withdrawal error:", err);
@@ -317,7 +324,7 @@ export default function MyPaymentsPage() {
     } finally {
       setWithdrawing(false);
     }
-  }, [selectedEmployment, withdrawAddress, withdrawAmount, withdrawMode, signMessage, publicKey, refetch, toast]);
+  }, [selectedEmployment, withdrawAddress, withdrawAmount, withdrawMode, signMessage, publicKey, refetch, fetchBalances, fetchWithdrawalHistory, toast]);
 
   // Calculate total available balance
   const totalAvailable = Object.values(balances).reduce((sum, b) => sum + (b.usdc || 0), 0);
@@ -369,7 +376,11 @@ export default function MyPaymentsPage() {
           </Button>
 
           {/* Refresh */}
-          <Button variant="outline" onClick={() => refetch()} size="sm">
+          <Button variant="outline" onClick={() => {
+            refetch();
+            fetchBalances();
+            fetchWithdrawalHistory();
+          }} size="sm">
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh
           </Button>
@@ -953,27 +964,45 @@ export default function MyPaymentsPage() {
 
           {withdrawStep === "processing" && (
             <div className="py-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-teal-500/10 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-teal-500 animate-spin" />
+              <div className={cn(
+                "w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center",
+                withdrawMode === "private" ? "bg-teal-500/10" : "bg-amber-500/10"
+              )}>
+                <Loader2 className={cn(
+                  "w-8 h-8 animate-spin",
+                  withdrawMode === "private" ? "text-teal-500" : "text-amber-500"
+                )} />
               </div>
-              <h3 className="text-lg font-semibold mb-2">Processing Withdrawal</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {withdrawMode === "private" ? "Processing Private Withdrawal" : "Processing Transfer"}
+              </h3>
               <p className="text-sm text-muted-foreground">
-                Privacy Cash is routing your funds through the privacy pool.
-                This may take a moment...
+                {withdrawMode === "private"
+                  ? "Privacy Cash is routing your funds through the privacy pool. This may take a moment..."
+                  : "Sending direct transfer to your wallet..."
+                }
               </p>
             </div>
           )}
 
           {withdrawStep === "success" && (
             <div className="py-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-teal-500/10 flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-teal-500" />
+              <div className={cn(
+                "w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center",
+                withdrawMode === "private" ? "bg-teal-500/10" : "bg-amber-500/10"
+              )}>
+                <CheckCircle className={cn(
+                  "w-8 h-8",
+                  withdrawMode === "private" ? "text-teal-500" : "text-amber-500"
+                )} />
               </div>
-              <h3 className="text-lg font-semibold mb-2">Withdrawal Successful!</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                {withdrawMode === "private" ? "Private Withdrawal Successful!" : "Transfer Successful!"}
+              </h3>
               <p className="text-sm text-muted-foreground mb-4">
                 {withdrawResult?.amount
-                  ? `${formatCurrency(withdrawResult.amount)} USDC sent privately to your wallet.`
-                  : "Funds sent privately to your wallet."
+                  ? `${formatCurrency(withdrawResult.amount)} USDC ${withdrawMode === "private" ? "sent privately" : "transferred"} to your wallet.`
+                  : `Funds ${withdrawMode === "private" ? "sent privately" : "transferred"} to your wallet.`
                 }
               </p>
               {withdrawResult?.signature && (
@@ -983,7 +1012,7 @@ export default function MyPaymentsPage() {
                   rel="noopener noreferrer"
                   className="text-sm text-teal-500 hover:text-teal-400 flex items-center justify-center gap-1"
                 >
-                  View on Solscan
+                  View on Explorer
                   <ExternalLink className="w-3 h-3" />
                 </a>
               )}

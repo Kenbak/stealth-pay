@@ -32,6 +32,12 @@ export const FEES = {
     STEALTH_RATE: 0.01,     // 1% StealthPay fee
     SHADOWWIRE_RATE: 0.01,  // 1% ShadowWire relayer fee
   } as const,
+
+  // Withdrawal fees (for employees withdrawing from StealthPay wallet)
+  WITHDRAWAL: {
+    PUBLIC_RATE: 0.003,     // 0.3% StealthPay fee on public withdrawals
+    MINIMUM_USD: 0.01,      // Minimum fee (for very small amounts)
+  } as const,
 };
 
 export type FeeTier = keyof typeof FEES.RATES;
@@ -115,6 +121,41 @@ export function calculateInvoiceFees(
     shadowwireFeeRate: FEES.INVOICE.SHADOWWIRE_RATE * 100,
     totalClientPays: Math.round((invoiceAmount + stealthFee + shadowwireFee) * 100) / 100,
     freelancerReceives: invoiceAmount,
+  };
+}
+
+/**
+ * Calculate public withdrawal fees
+ */
+export function calculateWithdrawalFee(
+  amount: number,
+  isPrivate: boolean
+): {
+  fee: number;
+  netAmount: number;
+  feePercentage: number;
+} {
+  if (isPrivate) {
+    // Privacy Cash handles fees internally (typically 5-15% based on amount)
+    // We don't add additional fees on top
+    return { fee: 0, netAmount: amount, feePercentage: 0 };
+  }
+
+  // Public withdrawal: apply StealthPay fee
+  const rate = FEES.WITHDRAWAL.PUBLIC_RATE;
+  let fee = amount * rate;
+
+  // Apply minimum fee
+  if (fee < FEES.WITHDRAWAL.MINIMUM_USD) {
+    fee = FEES.WITHDRAWAL.MINIMUM_USD;
+  }
+
+  const netAmount = Math.max(0, amount - fee);
+
+  return {
+    fee: Math.round(fee * 1000000) / 1000000, // Round to 6 decimals (USDC precision)
+    netAmount: Math.round(netAmount * 1000000) / 1000000,
+    feePercentage: rate * 100,
   };
 }
 

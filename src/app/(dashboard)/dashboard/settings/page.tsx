@@ -1,10 +1,8 @@
 "use client";
 
-import { useOrganization } from "@/hooks/use-organization";
+import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { useRequireOrganization } from "@/hooks/use-require-organization";
-import { useEmployees } from "@/hooks/use-employees";
-import { usePayrolls } from "@/hooks/use-payrolls";
+import { useAuth } from "@/contexts/auth-context";
 import {
   Card,
   CardContent,
@@ -15,38 +13,54 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Building2,
   Wallet,
-  Users,
-  Clock,
-  Shield,
   ExternalLink,
   Copy,
   Check,
-  Github,
-  Zap,
-  Lock,
-  Info,
+  Globe,
+  Pencil,
+  Save,
+  X,
+  CircleDollarSign,
+  Trash2,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useState } from "react";
-import { truncateAddress } from "@/lib/utils";
+import { truncateAddress, formatCurrency } from "@/lib/utils";
 import { isHeliusConfigured } from "@/lib/helius";
+import { useToast } from "@/components/ui/use-toast";
 
 // Get network from env
 const NETWORK = process.env.NEXT_PUBLIC_SOLANA_NETWORK || "devnet";
 const isMainnet = NETWORK === "mainnet-beta";
 
 export default function SettingsPage() {
-  // Redirect to /dashboard if no organization
-  const { isLoading: orgLoading, hasOrganization } = useRequireOrganization();
+  const { publicKey, disconnect } = useWallet();
+  const { isAdmin, isEmployee, organization, employments, isLoading, logout } = useAuth();
+  const { toast } = useToast();
 
-  const { organization, isLoading } = useOrganization();
-  const { publicKey } = useWallet();
-  const { employees } = useEmployees();
-  const { payrolls } = usePayrolls();
   const [copied, setCopied] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [newOrgName, setNewOrgName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [deletingOrg, setDeletingOrg] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   const copyAddress = () => {
     if (publicKey) {
@@ -56,245 +70,366 @@ export default function SettingsPage() {
     }
   };
 
-  const activeEmployees = employees.filter((e) => e.status === "ACTIVE").length;
-  const completedPayrolls = payrolls.filter((p) => p.status === "COMPLETED").length;
+  const handleEditName = () => {
+    if (organization) {
+      setNewOrgName(organization.name);
+      setEditingName(true);
+    }
+  };
 
-  // Show loading while checking org
-  if (orgLoading || !hasOrganization) {
+  const handleSaveName = async () => {
+    if (!newOrgName.trim()) {
+      toast({ title: "Error", description: "Organization name cannot be empty", variant: "destructive" });
+      return;
+    }
+
+    setSavingName(true);
+    try {
+      const token = localStorage.getItem("auth-token");
+      const response = await fetch("/api/organizations", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ name: newOrgName.trim() }),
+      });
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Organization name updated" });
+        setEditingName(false);
+        window.location.reload();
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to update");
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (deleteConfirmation !== organization?.name) {
+      toast({ title: "Error", description: "Please type the organization name to confirm", variant: "destructive" });
+      return;
+    }
+
+    setDeletingOrg(true);
+    try {
+      const token = localStorage.getItem("auth-token");
+      const response = await fetch("/api/organizations", {
+        method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      if (response.ok) {
+        toast({ title: "Organization deleted", description: "All data has been permanently removed" });
+        // Logout and redirect
+        if (logout) logout();
+        disconnect();
+        window.location.href = "/";
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete");
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeletingOrg(false);
+    }
+  };
+
+  // Calculate employee stats
+  const totalReceived = employments.reduce((sum, emp) => {
+    const payments = emp.recentPayments || [];
+    return sum + payments.reduce((pSum: number, p: { amount: number }) => pSum + p.amount, 0);
+  }, 0);
+
+  // Security features list
+  const securityFeatures = [
+    { label: "End-to-end encryption", detail: "AES-256-GCM", enabled: true },
+    { label: "Private payroll transfers", detail: "ShadowWire ZK", enabled: true },
+    { label: "Private withdrawals", detail: "Privacy Cash", enabled: true },
+    { label: "Enhanced RPC", detail: "Helius", enabled: isHeliusConfigured() },
+  ];
+
+  if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-2xl">
         <Skeleton className="h-10 w-48" />
-        <div className="grid gap-6 md:grid-cols-2">
-          {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-48 rounded-2xl" />
-          ))}
-        </div>
+        <Skeleton className="h-48 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 max-w-2xl">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
-          Manage your organization settings
+          Manage your account and preferences
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Organization Info */}
+      {/* Account */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Account</h2>
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Organization
-            </CardTitle>
-            <CardDescription>Your organization details</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {isLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </div>
-            ) : organization ? (
+          <CardContent className="pt-6 space-y-4">
+            {publicKey ? (
               <>
-                <div>
-                  <p className="text-sm text-muted-foreground">Name</p>
-                  <p className="font-medium text-lg">{organization.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Created</p>
-                  <p className="font-medium">
-                    {format(new Date(organization.createdAt), "MMMM d, yyyy")}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Connected Wallet</p>
+                    <div className="flex items-center gap-2">
+                      <code className="bg-muted px-2 py-1 rounded font-mono text-sm">
+                        {truncateAddress(publicKey.toBase58(), 8)}
+                      </code>
+                      <button
+                        onClick={copyAddress}
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {copied ? (
+                          <Check className="h-4 w-4 text-teal-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </button>
+                      <a
+                        href={`https://orbmarkets.io/address/${publicKey.toBase58()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
                   <Badge variant={isMainnet ? "default" : "secondary"}>
                     {isMainnet ? "Mainnet" : "Devnet"}
                   </Badge>
                 </div>
-              </>
-            ) : (
-              <p className="text-muted-foreground">No organization found</p>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Wallet Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
-              Admin Wallet
-            </CardTitle>
-            <CardDescription>Connected wallet address</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {publicKey ? (
-              <>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-muted px-3 py-2 rounded-lg font-mono text-sm truncate">
-                    {publicKey.toBase58()}
-                  </code>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={copyAddress}
-                    className="shrink-0"
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <p className="text-sm text-muted-foreground">
+                    Switch to a different wallet
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => disconnect()}>
+                    Disconnect
                   </Button>
                 </div>
-                <a
-                  href={`https://orbmarkets.io/address/${publicKey.toBase58()}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-amber-500 hover:underline"
-                >
-                  View on Solscan
-                  <ExternalLink className="h-3 w-3" />
-                </a>
               </>
             ) : (
               <p className="text-muted-foreground">No wallet connected</p>
             )}
           </CardContent>
         </Card>
+      </section>
 
-        {/* Stats */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Statistics
-            </CardTitle>
-            <CardDescription>Your organization stats</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-amber-500">{activeEmployees}</p>
-                <p className="text-sm text-muted-foreground">Active Employees</p>
-              </div>
-              <div className="bg-teal-500/5 border border-teal-500/10 rounded-lg p-4 text-center">
-                <p className="text-3xl font-bold text-teal-500">{completedPayrolls}</p>
-                <p className="text-sm text-muted-foreground">Payrolls Completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Security & Privacy */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5" />
-              Security & Privacy
-            </CardTitle>
-            <CardDescription>Your data protection status</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-teal-500/10 rounded-lg border border-teal-500/20">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-teal-500" />
-                <span className="text-sm font-medium">Data Encryption</span>
-              </div>
-              <Badge variant="outline" className="border-teal-500/50 text-teal-500">
-                AES-256-GCM
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium">Private Payments</span>
-              </div>
-              <Badge variant="outline" className="border-amber-500/50 text-amber-500">
-                ShadowWire ZK
-              </Badge>
-            </div>
-            {isHeliusConfigured() && (
-              <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm font-medium">Enhanced RPC</span>
+      {/* Organization - Only for admins */}
+      {isAdmin && organization && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Organization</h2>
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Name</p>
+                  {editingName ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={newOrgName}
+                        onChange={(e) => setNewOrgName(e.target.value)}
+                        className="w-48"
+                        placeholder="Organization name"
+                      />
+                      <Button size="icon" variant="ghost" onClick={handleSaveName} disabled={savingName}>
+                        {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={() => setEditingName(false)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="font-medium">{organization.name}</p>
+                  )}
                 </div>
-                <Badge variant="outline" className="border-amber-500/50 text-amber-500">
-                  Helius
-                </Badge>
+                {!editingName && (
+                  <Button variant="ghost" size="sm" onClick={handleEditName}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-            )}
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <p className="text-sm text-muted-foreground">Created</p>
+                <p className="text-sm">{format(new Date(organization.createdAt), "MMM d, yyyy")}</p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Employees</p>
+                <p className="text-sm font-medium">{organization.activeEmployeeCount || 0}</p>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Payrolls completed</p>
+                <p className="text-sm font-medium">{organization.completedPayrollCount || 0}</p>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Employment - Only for employees */}
+      {isEmployee && employments.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Employment</h2>
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Total received</p>
+                <p className="font-medium">{formatCurrency(totalReceived)}</p>
+              </div>
+
+              <div className="pt-2 border-t space-y-3">
+                {employments.map((emp) => (
+                  <div key={emp.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                        <Building2 className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{emp.organizationName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatCurrency(emp.salary)}/month
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-teal-500 border-teal-500/30">
+                      Active
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
+
+      {/* Security */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold">Security & Privacy</h2>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              {securityFeatures.map((feature, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {feature.enabled ? (
+                      <CheckCircle2 className="h-4 w-4 text-teal-500" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />
+                    )}
+                    <span className={`text-sm ${!feature.enabled ? "text-muted-foreground" : ""}`}>
+                      {feature.label}
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{feature.detail}</span>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
-      </div>
+      </section>
 
-      {/* About Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Info className="h-5 w-5" />
-            About StealthPay
-          </CardTitle>
-          <CardDescription>Private payroll on Solana</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">
-                StealthPay enables organizations to pay employees privately using
-                zero-knowledge proofs on Solana. Salaries stay confidential on-chain.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Powered by Radr ShadowWire
-              </p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href="https://github.com/your-repo/stealth-payroll"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="gap-2"
-                >
-                  <Github className="h-4 w-4" />
-                  GitHub
-                </a>
-              </Button>
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href="https://radr.fun"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="gap-2"
-                >
-                  <Shield className="h-4 w-4" />
-                  Radr Labs
-                </a>
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Danger Zone - Only for admins */}
+      {isAdmin && organization && (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-red-500">Danger Zone</h2>
+          <Card className="border-red-500/20">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="font-medium">Delete organization</p>
+                  <p className="text-sm text-muted-foreground">
+                    Permanently delete your organization and all associated data
+                  </p>
+                </div>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-red-500" />
+                        Delete Organization
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="space-y-4">
+                        <p>
+                          This action cannot be undone. This will permanently delete:
+                        </p>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                          <li>Your organization <strong>{organization.name}</strong></li>
+                          <li>All employee records</li>
+                          <li>All payroll history</li>
+                          <li>All invoices and transactions</li>
+                        </ul>
+                        <div className="pt-4">
+                          <p className="text-sm font-medium mb-2">
+                            Type <strong>{organization.name}</strong> to confirm:
+                          </p>
+                          <Input
+                            value={deleteConfirmation}
+                            onChange={(e) => setDeleteConfirmation(e.target.value)}
+                            placeholder={organization.name}
+                          />
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={() => setDeleteConfirmation("")}>
+                        Cancel
+                      </AlertDialogCancel>
+                      <Button
+                        variant="destructive"
+                        onClick={handleDeleteOrganization}
+                        disabled={deletingOrg || deleteConfirmation !== organization.name}
+                      >
+                        {deletingOrg ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          "Delete permanently"
+                        )}
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* Devnet Notice */}
       {!isMainnet && (
-        <Card className="border-dashed border-amber-500/30 !bg-amber-500/[0.02]">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3 text-sm">
-              <Info className="h-5 w-5 flex-shrink-0 text-amber-500" />
-              <div>
-                <p className="text-amber-700 dark:text-amber-400">
-                  <strong>Devnet Mode</strong> — You are using test tokens. No real funds at risk.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-3">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <p>
+            <strong>Devnet Mode</strong> — You are using test tokens.
+          </p>
+        </div>
       )}
     </div>
   );

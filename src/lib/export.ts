@@ -753,7 +753,7 @@ export function exportTreasuryActivityToCSV(data: TreasuryActivityExport): strin
     const netAmount = tx.type === "DEPOSIT" || tx.type === "INVOICE_IN"
       ? tx.amount - fee  // Inflows: subtract fee
       : tx.amount + fee; // Outflows: add fee to get total cost
-    
+
     return [
       new Date(tx.createdAt).toISOString(),
       tx.type,
@@ -770,7 +770,7 @@ export function exportTreasuryActivityToCSV(data: TreasuryActivityExport): strin
   // Calculate totals
   const deposits = data.transactions.filter(t => t.type === "DEPOSIT" || t.type === "INVOICE_IN");
   const outflows = data.transactions.filter(t => t.type === "WITHDRAW" || t.type === "PAYROLL_OUT");
-  
+
   const totalDeposits = deposits.reduce((sum, t) => sum + t.amount, 0);
   const totalOutflows = outflows.reduce((sum, t) => sum + t.amount, 0);
   const totalFees = data.transactions.reduce((sum, t) => sum + (t.feeAmount || 0), 0);
@@ -802,14 +802,14 @@ export function exportTreasuryActivityToJSON(data: TreasuryActivityExport): stri
 
   const report = {
     exportedAt: new Date().toISOString(),
-    
+
     organization: {
       name: data.organizationName,
       wallet: data.organizationWallet,
     },
-    
+
     period: data.period,
-    
+
     summary: {
       totalDeposits: deposits.reduce((sum, t) => sum + t.amount, 0),
       totalInvoiceIncome: invoiceIns.reduce((sum, t) => sum + t.amount, 0),
@@ -819,7 +819,7 @@ export function exportTreasuryActivityToJSON(data: TreasuryActivityExport): stri
       transactionCount: data.transactions.length,
       currency: "USDC",
     },
-    
+
     activity: {
       deposits: deposits.map(tx => ({
         date: tx.createdAt,
@@ -828,7 +828,7 @@ export function exportTreasuryActivityToJSON(data: TreasuryActivityExport): stri
         txHash: tx.txHash,
         verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
       })),
-      
+
       invoiceIncome: invoiceIns.map(tx => ({
         date: tx.createdAt,
         amount: tx.amount,
@@ -836,7 +836,7 @@ export function exportTreasuryActivityToJSON(data: TreasuryActivityExport): stri
         txHash: tx.txHash,
         verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
       })),
-      
+
       payrollOutflows: payrollOuts.map(tx => ({
         date: tx.createdAt,
         amount: tx.amount,
@@ -845,7 +845,7 @@ export function exportTreasuryActivityToJSON(data: TreasuryActivityExport): stri
         txHash: tx.txHash,
         verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
       })),
-      
+
       withdrawals: withdrawals.map(tx => ({
         date: tx.createdAt,
         amount: tx.amount,
@@ -853,7 +853,7 @@ export function exportTreasuryActivityToJSON(data: TreasuryActivityExport): stri
         verifyUrl: `https://orbmarkets.io/tx/${tx.txHash}`,
       })),
     },
-    
+
     auditNote: "All transaction hashes can be verified on-chain at the provided URLs.",
   };
 
@@ -910,22 +910,22 @@ export function exportPayrollDetailWithAuditToJSON(
 
   const exportData = {
     exportedAt: new Date().toISOString(),
-    
+
     organization: orgName ? {
       name: orgName,
       wallet: orgWallet,
     } : undefined,
-    
+
     payroll: {
       id: payroll.id,
       status: payroll.status,
-      
+
       dates: {
         createdAt: payroll.createdAt,
         scheduledDate: payroll.scheduledDate,
         executedAt: payroll.executedAt,
       },
-      
+
       financials: {
         totalSalaries: fees.salaries,
         stealthPayFee: fees.stealthFee,
@@ -935,32 +935,32 @@ export function exportPayrollDetailWithAuditToJSON(
         totalCost: fees.totalCost,
         currency: "USDC",
       },
-      
+
       auditTrail: {
         depositTxHash: payroll.depositTxHash,
-        depositVerifyUrl: payroll.depositTxHash 
-          ? `https://orbmarkets.io/tx/${payroll.depositTxHash}` 
+        depositVerifyUrl: payroll.depositTxHash
+          ? `https://orbmarkets.io/tx/${payroll.depositTxHash}`
           : null,
       },
-      
+
       payments: payroll.payments.map(payment => ({
         employeeId: payment.employeeId,
         employeeName: payment.employeeName,
         stealthPayWallet: payment.stealthPayWallet,
         amount: payment.amount,
         status: payment.status,
-        
+
         // Audit trail for each payment
         audit: {
           txSignature: payment.txSignature,
           proofPda: payment.proofPda,
-          verifyUrl: payment.txSignature 
-            ? `https://orbmarkets.io/tx/${payment.txSignature}` 
+          verifyUrl: payment.txSignature
+            ? `https://orbmarkets.io/tx/${payment.txSignature}`
             : null,
         },
       })),
     },
-    
+
     compliance: {
       note: "This payroll was executed using StealthPay privacy infrastructure.",
       privacyMethod: "ShadowWire ZK Transfers",

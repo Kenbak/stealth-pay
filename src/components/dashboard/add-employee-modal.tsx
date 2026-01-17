@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useEmployees } from "@/hooks/use-employees";
 import { Loader2, UserPlus, X, Copy, CheckCircle2, Link as LinkIcon, Lock } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+
+// Minimum salary (ShadowWire minimum deposit requirement)
+const MIN_SALARY = 6;
 
 interface AddEmployeeModalProps {
   isOpen: boolean;
@@ -14,6 +18,7 @@ interface AddEmployeeModalProps {
 
 export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
   const { createEmployee, isCreating } = useEmployees();
+  const { toast } = useToast();
 
   const [newEmployee, setNewEmployee] = useState({
     name: "",
@@ -27,6 +32,18 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
   const [copied, setCopied] = useState(false);
 
   const handleAddEmployee = () => {
+    if (!newEmployee.name || !newEmployee.salary) return;
+
+    const salary = parseFloat(newEmployee.salary);
+    if (salary < MIN_SALARY) {
+      toast({
+        title: "Salary too low",
+        description: `Minimum salary is ${MIN_SALARY} USDC (ShadowWire requirement)`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (newEmployee.name && newEmployee.salary) {
       createEmployee(
         {
@@ -177,11 +194,13 @@ export function AddEmployeeModal({ isOpen, onClose }: AddEmployeeModalProps) {
                 id="add-salary"
                 type="number"
                 placeholder="5000"
+                min={MIN_SALARY}
                 value={newEmployee.salary}
                 onChange={(e) =>
                   setNewEmployee({ ...newEmployee, salary: e.target.value })
                 }
               />
+              <p className="text-xs text-muted-foreground">Minimum: {MIN_SALARY} USDC</p>
             </div>
 
             <div className="p-4 rounded-lg bg-amber-500/5 border border-amber-500/20">

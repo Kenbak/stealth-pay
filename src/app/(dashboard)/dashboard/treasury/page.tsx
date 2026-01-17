@@ -30,7 +30,23 @@ import {
   Zap,
   ExternalLink,
   Clock,
+  Download,
+  FileSpreadsheet,
+  FileJson,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  downloadTreasuryActivityCSV,
+  downloadTreasuryActivityJSON,
+  type TreasuryActivityExport,
+  type TreasuryTransactionExport,
+} from "@/lib/export";
+import { useOrganization } from "@/hooks/use-organization";
 import { formatDistanceToNow } from "date-fns";
 import { isHeliusConfigured } from "@/lib/helius";
 import { useEmployees } from "@/hooks/use-employees";
@@ -50,6 +66,7 @@ const isMainnet = NETWORK === "mainnet-beta";
 export default function TreasuryPage() {
   // Redirect to /dashboard if no organization
   const { isLoading: orgLoading, hasOrganization } = useRequireOrganization();
+  const { organization } = useOrganization();
 
   const { publicKey, connected } = useWallet();
   const { connection } = useConnection();
@@ -89,25 +106,25 @@ export default function TreasuryPage() {
   // Treasury is always USDC (simplified UX)
   const treasuryBalance = poolBalance.usdc;
 
-  // Fetch on-chain transaction history via Helius
-  const { data: onchainData, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
-    queryKey: ["treasury-history", publicKey?.toBase58()],
+  // Fetch treasury transactions from database
+  const { data: dbData, isLoading: isLoadingHistory, refetch: refetchHistory } = useQuery({
+    queryKey: ["treasury-transactions"],
     queryFn: async () => {
       const token = localStorage.getItem("auth-token");
       if (!token) return { transactions: [] };
 
-      const res = await fetch("/api/treasury/history?limit=30", {
+      const res = await fetch("/api/treasury/transactions", {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return { transactions: [] };
       return res.json();
     },
-    enabled: connected && isHeliusConfigured(),
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 60000, // Refetch every minute
+    enabled: connected,
+    staleTime: 10000, // 10 seconds
+    refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  const onchainTransactions = onchainData?.transactions || [];
+  const dbTransactions = dbData?.transactions || [];
 
   // Get SOL price for swap calculations
   const solPrice = getPrice("SOL");
@@ -824,142 +841,198 @@ export default function TreasuryPage() {
               </CardTitle>
               <CardDescription>Recent transactions</CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => refetchHistory()}
-              disabled={isLoadingHistory}
-            >
-              <RefreshCw className={`h-4 w-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => refetchHistory()}
+                disabled={isLoadingHistory}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              </Button>
+              {dbTransactions.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      const exportData: TreasuryActivityExport = {
+                        organizationName: organization?.name || "Unknown",
+                        organizationWallet: publicKey?.toBase58() || "",
+                        period: {
+                          from: dbTransactions.length > 0
+                            ? dbTransactions[dbTransactions.length - 1].createdAt
+                            : new Date().toISOString(),
+                          to: dbTransactions.length > 0
+                            ? dbTransactions[0].createdAt
+                            : new Date().toISOString(),
+                        },
+                        transactions: dbTransactions.map((tx: {
+                          id: string;
+                          type: "DEPOSIT" | "WITHDRAW" | "PAYROLL_OUT" | "INVOICE_IN";
+                          amount: number;
+                          tokenMint: string;
+                          txHash: string;
+                          feeAmount: number | null;
+                          payrollId: string | null;
+                          createdAt: string;
+                        }): TreasuryTransactionExport => ({
+                          id: tx.id,
+                          type: tx.type,
+                          amount: tx.amount,
+                          tokenMint: tx.tokenMint,
+                          txHash: tx.txHash,
+                          feeAmount: tx.feeAmount ?? undefined,
+                          feeTxHash: undefined,
+                          payrollId: tx.payrollId || undefined,
+                          createdAt: tx.createdAt,
+                        })),
+                      };
+                      downloadTreasuryActivityCSV(exportData, organization?.name);
+                      toast({ title: "Exported", description: "Treasury activity exported to CSV" });
+                    }}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Export CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      const exportData: TreasuryActivityExport = {
+                        organizationName: organization?.name || "Unknown",
+                        organizationWallet: publicKey?.toBase58() || "",
+                        period: {
+                          from: dbTransactions.length > 0
+                            ? dbTransactions[dbTransactions.length - 1].createdAt
+                            : new Date().toISOString(),
+                          to: dbTransactions.length > 0
+                            ? dbTransactions[0].createdAt
+                            : new Date().toISOString(),
+                        },
+                        transactions: dbTransactions.map((tx: {
+                          id: string;
+                          type: "DEPOSIT" | "WITHDRAW" | "PAYROLL_OUT" | "INVOICE_IN";
+                          amount: number;
+                          tokenMint: string;
+                          txHash: string;
+                          feeAmount: number | null;
+                          payrollId: string | null;
+                          createdAt: string;
+                        }): TreasuryTransactionExport => ({
+                          id: tx.id,
+                          type: tx.type,
+                          amount: tx.amount,
+                          tokenMint: tx.tokenMint,
+                          txHash: tx.txHash,
+                          feeAmount: tx.feeAmount ?? undefined,
+                          feeTxHash: undefined,
+                          payrollId: tx.payrollId || undefined,
+                          createdAt: tx.createdAt,
+                        })),
+                      };
+                      downloadTreasuryActivityJSON(exportData, organization?.name);
+                      toast({ title: "Exported", description: "Treasury activity exported to JSON" });
+                    }}>
+                      <FileJson className="h-4 w-4 mr-2" />
+                      Export JSON
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {(
-            /* ON-CHAIN HISTORY - From Helius */
-            (() => {
-              // USDC mint addresses
-              const USDC_MINTS = [
-                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // Mainnet
-                "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Devnet
-              ];
-
-              const walletAddr = publicKey?.toBase58() || "";
-
-              // Filter to only show Treasury Deposits (UNKNOWN type with outgoing USDC)
-              // These are the ShadowWire escrow deposits
-              const usdcTransactions = onchainTransactions.filter((tx: {
-                type: string;
-                transfers: {
-                  token: Array<{ mint: string; from: string; amount: number }>;
-                };
+          {isLoadingHistory ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
+              <span className="ml-2 text-muted-foreground">Loading history...</span>
+            </div>
+          ) : dbTransactions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Shield className="h-10 w-10 mx-auto mb-3 opacity-50" />
+              <p>No transactions found</p>
+              <p className="text-sm">Treasury transactions will appear here</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              {dbTransactions.map((tx: {
+                id: string;
+                type: "DEPOSIT" | "WITHDRAW" | "PAYROLL_OUT" | "INVOICE_IN";
+                amount: number;
+                tokenMint: string;
+                txHash: string;
+                feeAmount: number | null;
+                payrollId: string | null;
+                createdAt: string;
               }) => {
-                // Must have USDC transfers
-                const hasUsdc = tx.transfers?.token?.some(t => USDC_MINTS.includes(t.mint));
-                if (!hasUsdc) return false;
+                // Determine icon and colors based on type
+                const isInflow = tx.type === "DEPOSIT" || tx.type === "INVOICE_IN";
+                const typeLabels: Record<string, { label: string; description: string }> = {
+                  DEPOSIT: { label: "Deposit", description: "Added to treasury" },
+                  WITHDRAW: { label: "Withdraw", description: "Withdrawn to wallet" },
+                  PAYROLL_OUT: { label: "Payroll", description: "Employee payments" },
+                  INVOICE_IN: { label: "Invoice Paid", description: "Client payment received" },
+                };
 
-                // Must be UNKNOWN type (ShadowWire deposits show as UNKNOWN)
-                // and have outgoing USDC from our wallet
-                const isDeposit = tx.type === "UNKNOWN" &&
-                  tx.transfers?.token?.some(t =>
-                    USDC_MINTS.includes(t.mint) &&
-                    t.from === walletAddr &&
-                    t.amount > 1 // Filter out small amounts (fees)
-                  );
+                const { label, description } = typeLabels[tx.type] || { label: tx.type, description: "" };
 
-                return isDeposit;
-              });
-
-              if (isLoadingHistory) {
                 return (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
-                    <span className="ml-2 text-muted-foreground">Loading deposits...</span>
-                  </div>
-                );
-              }
-
-              if (usdcTransactions.length === 0) {
-                return (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Shield className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                    <p>No deposits found</p>
-                    <p className="text-sm">Treasury deposits will appear here</p>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-3">
-                  {usdcTransactions.map((tx: {
-                    signature: string;
-                    timestamp: number;
-                    type: string;
-                    transfers: {
-                      token: Array<{ from: string; to: string; amount: number; mint: string }>;
-                    };
-                  }) => {
-                    // Find the main USDC transfer (the deposit amount)
-                    const usdcTransfer = tx.transfers.token.find(t =>
-                      USDC_MINTS.includes(t.mint) &&
-                      t.from === walletAddr &&
-                      t.amount > 1
-                    );
-
-                    const depositAmount = usdcTransfer?.amount || 0;
-
-                    return (
-                      <div
-                        key={tx.signature}
-                        className="flex items-center justify-between p-3 rounded-lg border border-amber-500/20 hover:bg-amber-500/5 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-500/10 text-amber-500">
-                            <Shield className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="font-medium text-sm">
-                              Deposit
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Funded privacy pool
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {tx.timestamp ? formatDistanceToNow(new Date(tx.timestamp * 1000), { addSuffix: true }) : ""}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="font-medium text-amber-500">
-                              {depositAmount.toFixed(2)} USDC
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {tx.signature.slice(0, 8)}...
-                            </p>
-                          </div>
-                          <a
-                            href={`https://orbmarkets.io/tx/${tx.signature}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-amber-500 hover:text-amber-600"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </div>
+                  <div
+                    key={tx.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                      isInflow
+                        ? "border-teal-500/20 hover:bg-teal-500/5"
+                        : "border-amber-500/20 hover:bg-amber-500/5"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                        isInflow ? "bg-teal-500/10 text-teal-500" : "bg-amber-500/10 text-amber-500"
+                      }`}>
+                        {isInflow ? (
+                          <ArrowDownToLine className="h-4 w-4" />
+                        ) : (
+                          <ArrowUpFromLine className="h-4 w-4" />
+                        )}
                       </div>
-                    );
-                  })}
+                      <div>
+                        <p className="font-medium text-sm">{label}</p>
+                        <p className="text-xs text-muted-foreground">{description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(tx.createdAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
 
-                  {/* Helius attribution */}
-                  <div className="flex items-center justify-center gap-2 pt-2 text-xs text-muted-foreground">
-                    <Zap className="h-3 w-3 text-amber-500" />
-                    Powered by Helius
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className={`font-medium ${isInflow ? "text-teal-500" : "text-amber-500"}`}>
+                          {isInflow ? "+" : "-"}{tx.amount.toFixed(2)} USDC
+                        </p>
+                        {tx.feeAmount && tx.feeAmount > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            Fee: {tx.feeAmount.toFixed(2)}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {tx.txHash.slice(0, 8)}...
+                        </p>
+                      </div>
+                      <a
+                        href={`https://orbmarkets.io/tx/${tx.txHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`${isInflow ? "text-teal-500 hover:text-teal-600" : "text-amber-500 hover:text-amber-600"}`}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </div>
                   </div>
-                </div>
-              );
-            })()
+                );
+              })}
+            </div>
           )}
         </CardContent>
       </Card>

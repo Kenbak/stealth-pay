@@ -76,6 +76,7 @@ export const MINIMUM_DEPOSIT = {
 export interface PoolBalance {
   sol: number;
   usdc: number;
+  usd1?: number;
 }
 
 export function useShadowWire() {
@@ -83,11 +84,11 @@ export function useShadowWire() {
   const { connection } = useConnection();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [balance, setBalance] = useState<PoolBalance>({ sol: 0, usdc: 0 });
+  const [balance, setBalance] = useState<PoolBalance>({ sol: 0, usdc: 0, usd1: 0 });
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Fetch balances for SOL and USDC
+   * Fetch balances for SOL, USDC, and USD1
    */
   const fetchBalance = useCallback(async () => {
     if (!publicKey) return;
@@ -96,13 +97,15 @@ export function useShadowWire() {
       const wallet = publicKey.toBase58();
       console.log('[BALANCE] Fetching pool balance for:', wallet);
 
-      const [solBalance, usdcBalance] = await Promise.allSettled([
+      const [solBalance, usdcBalance, usd1Balance] = await Promise.allSettled([
         getPoolBalance(wallet, 'SOL'),
         getPoolBalance(wallet, 'USDC'),
+        getPoolBalance(wallet, 'USD1' as TokenSymbol),
       ]);
 
       console.log('[BALANCE] SOL result:', solBalance);
       console.log('[BALANCE] USDC result:', usdcBalance);
+      console.log('[BALANCE] USD1 result:', usd1Balance);
 
       const newBalance = {
         sol: solBalance.status === 'fulfilled'
@@ -110,6 +113,9 @@ export function useShadowWire() {
           : 0,
         usdc: usdcBalance.status === 'fulfilled'
           ? fromSmallestUnit(usdcBalance.value.available, 'USDC')
+          : 0,
+        usd1: usd1Balance.status === 'fulfilled'
+          ? fromSmallestUnit(usd1Balance.value.available, 'USDC') // USD1 has same decimals as USDC
           : 0,
       };
 
@@ -185,22 +191,28 @@ export function useShadowWire() {
       // For simplicity, we calculate fee on the token amount directly
       const { fee: feeAmount, netAmount } = calculateFee(amount);
 
-      console.log('[DEPOSIT] Fee calculation:', { feeAmount, netAmount });
+      console.log('[DEPOSIT] Fee calculation:', { feeAmount, netAmount, skipFee });
 
       // Check minimum deposit (these minimums already include fee buffer)
-      const minDeposit = MINIMUM_DEPOSIT[token as keyof typeof MINIMUM_DEPOSIT] || 6;
-      if (amount < minDeposit) {
-        throw new Error(
-          `Minimum deposit is ${minDeposit} ${token}. ` +
-          `This ensures enough remains after the 0.3% fee for ShadowWire's pool minimum.`
-        );
+      // Skip minimum check for invoice payments (skipFee = true)
+      if (!skipFee) {
+        const minDeposit = MINIMUM_DEPOSIT[token as keyof typeof MINIMUM_DEPOSIT] || 6;
+        if (amount < minDeposit) {
+          throw new Error(
+            `Minimum deposit is ${minDeposit} ${token}. ` +
+            `This ensures enough remains after the 0.3% fee for ShadowWire's pool minimum.`
+          );
+        }
       }
 
       // Convert to smallest units
+      // When skipFee is true, deposit the full amount (for invoice payments where fees are included in total)
       const feeSmallest = skipFee ? 0 : Math.floor(feeAmount * Math.pow(10, tokenDecimals));
-      const depositSmallest = Math.floor(netAmount * Math.pow(10, tokenDecimals));
+      const depositSmallest = skipFee
+        ? Math.floor(amount * Math.pow(10, tokenDecimals))  // Full amount when skipping fee
+        : Math.floor(netAmount * Math.pow(10, tokenDecimals));  // Net amount when paying fee
 
-      console.log('[DEPOSIT] Amounts in smallest units:', { feeSmallest, depositSmallest });
+      console.log('[DEPOSIT] Amounts in smallest units:', { feeSmallest, depositSmallest, skipFee });
 
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
 
@@ -367,26 +379,28 @@ export function useShadowWire() {
 
       console.log('[DEPOSIT] Success! Signature:', signature);
 
-      // Record transaction in database
-      const tokenMint = token === 'USDC'
-        ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
-        : token === 'SOL'
-        ? 'So11111111111111111111111111111111111111112'
-        : '';
+      // Record transaction in database (only for treasury deposits, not invoice payments)
+      if (!skipFee) {
+        const tokenMint = token === 'USDC'
+          ? 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+          : token === 'SOL'
+          ? 'So11111111111111111111111111111111111111112'
+          : '';
 
-      await recordTreasuryTransaction({
-        type: 'DEPOSIT',
-        amount: netAmount,
-        tokenMint,
-        txHash: signature,
-        feeAmount: feeAmount > 0 ? feeAmount : undefined,
-        feeTxHash: feeSignature || undefined,
-      });
+        await recordTreasuryTransaction({
+          type: 'DEPOSIT',
+          amount: netAmount,
+          tokenMint,
+          txHash: signature,
+          feeAmount: feeAmount > 0 ? feeAmount : undefined,
+          feeTxHash: feeSignature || undefined,
+        });
 
-      toast({
-        title: 'Deposit successful! 🎉',
-        description: `${netAmount.toFixed(2)} ${token} deposited to privacy pool`,
-      });
+        toast({
+          title: 'Deposit successful! 🎉',
+          description: `${netAmount.toFixed(2)} ${token} deposited to privacy pool`,
+        });
+      }
 
       // Refresh balance
       await fetchBalance();

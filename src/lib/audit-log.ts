@@ -13,6 +13,7 @@ export type AuditAction =
   | "AUTH_TOKEN_CREATED"
   | "ORG_CREATED"
   | "ORG_UPDATED"
+  | "ORG_DELETED"
   | "EMPLOYEE_CREATED"
   | "EMPLOYEE_UPDATED"
   | "EMPLOYEE_DELETED"

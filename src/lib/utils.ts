@@ -115,11 +115,13 @@ const TOKEN_MINTS = {
     SOL: "So11111111111111111111111111111111111111112",
     USDC: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // Devnet USDC faucet
     USDT: "EJwZgeZrdC8TXTQbQBoL6bfuAnFUUy1PVCMB4DYPzVaS", // Devnet USDT
+    USD1: "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB", // USD1 (same on devnet)
   },
   "mainnet-beta": {
     SOL: "So11111111111111111111111111111111111111112",
     USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // Mainnet USDC
     USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", // Mainnet USDT
+    USD1: "USD1ttGY1N17NEEHLmELoaybftRBUSErhqYiQzvEmuB", // World Liberty Financial USD1
   },
 };
 
@@ -141,6 +143,7 @@ export const TOKENS = {
     decimals: 9,
     get mint() { return getTokenMints().SOL; },
     icon: "◎",
+    logo: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png",
   },
   USDC: {
     name: "USD Coin",
@@ -148,6 +151,7 @@ export const TOKENS = {
     decimals: 6,
     get mint() { return getTokenMints().USDC; },
     icon: "$",
+    logo: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png",
   },
   USDT: {
     name: "Tether",
@@ -155,6 +159,15 @@ export const TOKENS = {
     decimals: 6,
     get mint() { return getTokenMints().USDT; },
     icon: "₮",
+    logo: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB/logo.svg",
+  },
+  USD1: {
+    name: "USD1",
+    symbol: "USD1",
+    decimals: 6,
+    get mint() { return getTokenMints().USD1; },
+    icon: "💵",
+    logo: "https://raw.githubusercontent.com/worldliberty/usd1-metadata/refs/heads/main/logo.png",
   },
 } as const;
 

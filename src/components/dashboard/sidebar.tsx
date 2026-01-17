@@ -33,7 +33,7 @@ import {
 import { useAuth, type Employment } from "@/contexts/auth-context";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Admin navigation (for organization owners)
+// Admin navigation (for organization owners) - WITHOUT Settings
 const adminNavigation = [
   {
     name: "Dashboard",
@@ -59,11 +59,6 @@ const adminNavigation = [
     name: "Treasury",
     href: "/dashboard/treasury",
     icon: Wallet,
-  },
-  {
-    name: "Settings",
-    href: "/dashboard/settings",
-    icon: Settings,
   },
 ];
 
@@ -128,17 +123,16 @@ export function Sidebar() {
               </li>
             ) : (
               <>
-                {/* Admin Navigation */}
+                {/* Organization Section - Always first when admin */}
                 {showAdminNav && (
                   <li>
-                    {showEmployeeNav && (
-                      <div className="flex items-center gap-2 mb-3 px-2">
-                        <Building2 className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          {organization.name}
-                        </span>
-                      </div>
-                    )}
+                    {/* Always show organization header */}
+                    <div className="flex items-center gap-2 mb-3 px-2">
+                      <Building2 className="w-4 h-4 text-amber-500" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {organization.name}
+                      </span>
+                    </div>
                     <ul role="list" className="-mx-2 space-y-1">
                       {adminNavigation.map((item) => {
                         const isActive = pathname === item.href;
@@ -173,17 +167,15 @@ export function Sidebar() {
                   </li>
                 )}
 
-                {/* Employee Navigation */}
+                {/* Employee Section - Always after Organization */}
                 {showEmployeeNav && (
                   <li>
-                    {showAdminNav && (
-                      <div className="flex items-center gap-2 mb-3 px-2">
-                        <CircleDollarSign className="w-4 h-4 text-teal-500" />
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          My Employment
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 mb-3 px-2">
+                      <CircleDollarSign className="w-4 h-4 text-teal-500" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        My Employment
+                      </span>
+                    </div>
                     <ul role="list" className="-mx-2 space-y-1">
                       {employeeNavigation.map((item) => {
                         const isActive = pathname === item.href;
@@ -228,17 +220,15 @@ export function Sidebar() {
                   </li>
                 )}
 
-                {/* Show create org option if user doesn't have one */}
+                {/* Create Organization option if user doesn't have one */}
                 {!showAdminNav && (
                   <li>
-                    {showEmployeeNav && (
-                      <div className="flex items-center gap-2 mb-3 px-2 mt-6">
-                        <Building2 className="w-4 h-4 text-amber-500" />
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                          Start Your Own
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 mb-3 px-2">
+                      <Building2 className="w-4 h-4 text-amber-500" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Organization
+                      </span>
+                    </div>
                     <ul role="list" className="-mx-2 space-y-1">
                       <li>
                         <Link
@@ -255,6 +245,32 @@ export function Sidebar() {
                     </p>
                   </li>
                 )}
+
+                {/* Settings - Independent section, visible to everyone */}
+                <li className="pt-4 border-t border-white/[0.06]">
+                  <Link
+                    href="/dashboard/settings"
+                    className={cn(
+                      "group flex gap-x-3 rounded-xl p-3 text-sm font-medium leading-6 transition-all duration-200 -mx-2",
+                      pathname === "/dashboard/settings"
+                        ? "bg-gradient-to-r from-slate-500/10 to-slate-500/5 text-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-white/50 dark:hover:bg-white/5 hover:text-foreground"
+                    )}
+                  >
+                    <Settings
+                      className={cn(
+                        "h-5 w-5 shrink-0 transition-colors",
+                        pathname === "/dashboard/settings"
+                          ? "text-foreground"
+                          : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
+                    Settings
+                    {pathname === "/dashboard/settings" && (
+                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-foreground" />
+                    )}
+                  </Link>
+                </li>
               </>
             )}
 

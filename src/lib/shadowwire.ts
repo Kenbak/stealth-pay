@@ -24,6 +24,7 @@ export { SUPPORTED_TOKENS, TokenUtils };
 export const TOKEN_INFO: Record<string, { symbol: string; decimals: number }> = {
   SOL: { symbol: 'SOL', decimals: 9 },
   USDC: { symbol: 'USDC', decimals: 6 },
+  USD1: { symbol: 'USD1', decimals: 6 },
   RADR: { symbol: 'RADR', decimals: 9 },
 };
 
